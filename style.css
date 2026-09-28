@@ -539,6 +539,15 @@ footer a:hover {
   opacity: 0.8;
 }
 
+/* The dot used to sit right next to "Datenschutz" on the same line --
+   Iryna reported it was still too easy to hit by accident on a phone even
+   after the bigger invisible tap target. Moved 28.09.2026: now on its own
+   row below the footer text, with real vertical distance from any other
+   link, so a thumb aiming for "Datenschutz" is nowhere near it. */
+.admin-dot-row {
+  margin-top: 14px;
+}
+
 /* =====================================================
    Responsive
    ===================================================== */

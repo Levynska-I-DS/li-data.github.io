@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veranstaltung – Iryna Levynska</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>IRGW &middot; Veranstaltungen</h1>
+</header>
+
+<section class="em-container">
+  <div id="event-detail"><p>Lädt…</p></div>
+</section>
+
+<footer>© 2026 Familienschabbat-Team · <a href="../datenschutz.html">Datenschutz</a></footer>
+
+<script type="module">
+  import { supabase } from '../shared/supabase-client.js';
+
+  // Labels for the meal_type column, shown on the public event detail page.
+  const MEAL_LABELS = { meal: 'Mahlzeit', buffet: 'Buffet', snack: 'Kleiner Imbiss' };
+
+  const detail = document.getElementById('event-detail');
+  const slug = new URLSearchParams(window.location.search).get('event');
+
+  if (!slug) {
+    detail.innerHTML = '<p>Veranstaltung nicht angegeben.</p>';
+  } else {
+    const { data: ev, error } = await supabase
+      .from('events')
+      .select('slug, title, description, starts_at, location, image_url, meal_type, sponsor_categories, registration_deadline, status')
+      .eq('slug', slug)
+      .single();
+
+    if (error || !ev) {
+      console.error('Supabase error loading event (slug=' + slug + '):', error);
+      detail.innerHTML = '<p>Veranstaltung nicht gefunden.</p>';
+    } else {
+      const deadlinePassed = ev.registration_deadline && new Date() > new Date(ev.registration_deadline);
+      const registerHtml = deadlinePassed
+        ? `<p style="color:#cc0000;"><strong>Anmeldung geschlossen</strong> — die Anmeldefrist ist am ${new Date(ev.registration_deadline).toLocaleString('de-DE')} abgelaufen.</p>`
+        : `<a class="button" href="register.html?event=${ev.slug}">Jetzt anmelden</a>`;
+      const deadlineHint = (!deadlinePassed && ev.registration_deadline)
+        ? `<p><em>Anmeldeschluss: ${new Date(ev.registration_deadline).toLocaleString('de-DE')}</em></p>`
+        : '';
+      detail.innerHTML = `
+        <div class="em-card">
+          ${ev.status !== 'published' ? '<p style="background:#fff3cd; color:#7a5c00; padding:6px 10px; border-radius:6px; font-size:0.85em;">Vorschau — dieses Event ist noch nicht veröffentlicht (Status: ' + ev.status + ') und für Besucher nicht sichtbar.</p>' : ''}
+          ${ev.image_url ? `<img src="${ev.image_url}" alt="${ev.title}" style="width:100%; max-width:500px; border-radius:8px; display:block; margin-bottom:16px;">` : ''}
+          <h2>${ev.title}</h2>
+          <p>${ev.starts_at ? new Date(ev.starts_at).toLocaleString('de-DE') : ''} ${ev.location ? '· ' + ev.location : ''}</p>
+          <p>${ev.description || ''}</p>
+          ${ev.meal_type && ev.meal_type !== 'none' ? `<p><em>Verpflegung: ${MEAL_LABELS[ev.meal_type] || ev.meal_type}</em></p>` : ''}
+          ${deadlineHint}
+          ${registerHtml}
+          ${ev.sponsor_categories && ev.sponsor_categories.length ? `<a class="button secondary" href="sponsor.html?event=${ev.slug}">Sponsor werden</a>` : ''}
+        </div>
+      `;
+    }
+  }
+</script>
+
+</body>
+</html>

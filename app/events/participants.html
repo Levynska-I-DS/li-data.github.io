@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teilnehmer – Event Manager</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../events/events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>Event Manager</h1>
+  <nav>
+    <a href="events.html">Veranstaltungen</a>
+    <a href="statistics.html">Statistik</a>
+    <a href="members.html">Mitglieder</a>
+    <a href="#" id="logout-link">Abmelden</a>
+  </nav>
+</header>
+
+<section class="em-container">
+  <div id="participants-area"><p>Lädt…</p></div>
+</section>
+
+<footer>© 2026 Familienschabbat-Team</footer>
+
+<script type="module">
+  import { supabase } from '../../shared/supabase-client.js';
+  import { requireAuth, logout } from '../../shared/require-auth.js';
+
+  await requireAuth('../login.html');
+
+  document.getElementById('logout-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    logout('../login.html');
+  });
+
+  const MEMBER_LABELS = { yes: 'Ja', no: 'Nein', unknown: 'Weiß nicht' };
+
+  const area = document.getElementById('participants-area');
+  const slug = new URLSearchParams(window.location.search).get('event');
+
+  if (!slug) {
+    area.innerHTML = '<p>Keine Veranstaltung angegeben. <a href="events.html">Zurück zur Übersicht</a>.</p>';
+  } else {
+    await loadParticipants();
+  }
+
+  function childrenSummary(children) {
+    if (!children.length) return '—';
+    return children.map(c => {
+      const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Kind';
+      const age = c.age != null ? ` (${c.age})` : '';
+      const allergy = c.allergies ? ' ⚠' : '';
+      const kindertisch = c.at_kindertisch ? ' 🧒K' : '';
+      const highChair = c.needs_high_chair ? ' 🪑' : '';
+      const titleParts = [];
+      if (c.birth_date) titleParts.push('Geburtsdatum: ' + new Date(c.birth_date).toLocaleDateString('de-DE'));
+      if (c.allergies) titleParts.push(c.allergies);
+      if (c.at_kindertisch) titleParts.push('sitzt am Kindertisch');
+      if (c.needs_high_chair) titleParts.push('Kindersitz benötigt');
+      const title = titleParts.length ? ` title="${titleParts.join(' — ').replace(/"/g, '&quot;')}"` : '';
+      return `<span${title}>${name}${age}${allergy}${kindertisch}${highChair}</span>`;
+    }).join(', ');
+  }
+
+  // Plain-text version for CSV export: the on-screen summary hides birth
+  // date, allergies etc. behind a hover tooltip (title attribute), which is
+  // stripped away by the HTML-tag removal used for CSV -- so this writes
+  // everything out as visible text instead, one child per segment.
+  function childrenCsvSummary(children) {
+    if (!children.length) return '';
+    return children.map(c => {
+      const name = [c.first_name, c.last_name].filter(Boolean).join(' ') || 'Kind';
+      const parts = [name];
+      if (c.birth_date) parts.push('geb. ' + new Date(c.birth_date).toLocaleDateString('de-DE'));
+      if (c.allergies) parts.push('Allergien: ' + c.allergies);
+      if (c.at_kindertisch) parts.push('Kindertisch');
+      if (c.needs_high_chair) parts.push('Kindersitz');
+      return parts.join(', ');
+    }).join(' / ');
+  }
+
+  function orderItemsSummary(items) {
+    if (!items.length) return '—';
+    return items.map(i => `${i.quantity}× ${i.product_name}`).join(', ');
+  }
+
+  async function loadParticipants() {
+    const { data: ev, error: evError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('slug', slug)
+      .single();
+
+    if (evError || !ev) {
+      area.innerHTML = '<p>Veranstaltung nicht gefunden. <a href="events.html">Zurück zur Übersicht</a>.</p>';
+      return;
+    }
+
+    const { data: regs, error: regError } = await supabase
+      .from('registrations')
+      .select('*')
+      .eq('event_id', ev.id)
+      .order('created_at', { ascending: true });
+
+    if (regError) {
+      area.innerHTML = `<p>Fehler: ${regError.message}</p>`;
+      return;
+    }
+
+    const { data: verifiedRows } = await supabase
+      .from('verified_members')
+      .select('email');
+    const verifiedEmails = new Set((verifiedRows || []).map(v => (v.email || '').toLowerCase()));
+
+    const regIds = regs.map(r => r.id);
+    let childrenByReg = {};
+    let orderItemsByReg = {};
+    if (regIds.length) {
+      const { data: children, error: childError } = await supabase
+        .from('registration_children')
+        .select('*')
+        .in('registration_id', regIds);
+      if (!childError) {
+        childrenByReg = children.reduce((acc, c) => {
+          (acc[c.registration_id] ??= []).push(c);
+          return acc;
+        }, {});
+      }
+
+      const { data: orderItems, error: orderItemsError } = await supabase
+        .from('registration_order_items')
+        .select('*')
+        .in('registration_id', regIds);
+      if (!orderItemsError) {
+        orderItemsByReg = orderItems.reduce((acc, o) => {
+          (acc[o.registration_id] ??= []).push(o);
+          return acc;
+        }, {});
+      }
+    }
+
+    const hasFee = ev.non_member_fee && Number(ev.non_member_fee) > 0;
+    const confirmed = regs.filter(r => r.status === 'confirmed');
+    const waitlisted = regs.filter(r => r.status === 'waitlist');
+    const cancelled = regs.filter(r => r.status === 'cancelled');
+    const totalGuests = confirmed.reduce((sum, r) => sum + (r.guests_count || 0), 0);
+    const totalFeeConsent = confirmed.filter(r => r.fee_consent).length;
+    const totalFeeAmount = confirmed
+      .filter(r => r.fee_consent)
+      .reduce((sum, r) => sum + (Number(r.fee_amount_charged) || 0), 0);
+    const capacityText = ev.capacity ? `${totalGuests} / ${ev.capacity}` : `${totalGuests} (kein Limit)`;
+    const capacityPct = ev.capacity ? Math.min(100, Math.round((totalGuests / ev.capacity) * 100)) : null;
+    const capacityBarColor = capacityPct === null ? '' : capacityPct >= 100 ? '#b0554f' : capacityPct >= 80 ? '#c9a227' : '#6f8f5f';
+
+    // Aggregate pre-orders across confirmed registrations: quantity and revenue per product.
+    const orderTotals = confirmed.reduce((acc, r) => {
+      (orderItemsByReg[r.id] || []).forEach(o => {
+        const entry = acc[o.product_name] || { quantity: 0, total: 0 };
+        entry.quantity += o.quantity;
+        if (o.unit_price != null) entry.total += o.unit_price * o.quantity;
+        acc[o.product_name] = entry;
+      });
+      return acc;
+    }, {});
+    const orderTotalsText = Object.entries(orderTotals)
+      .map(([name, t]) => `${t.quantity}× ${name}${t.total ? ' (' + t.total.toFixed(2) + ' €)' : ''}`)
+      .join(', ');
+
+    // Kindertisch counts: only among children of confirmed registrations.
+    const confirmedChildren = confirmed.flatMap(r => childrenByReg[r.id] || []);
+    const kindertischCount = confirmedChildren.filter(c => c.at_kindertisch).length;
+    const withParentsCount = confirmedChildren.filter(c => !c.at_kindertisch).length;
+    const highChairCount = confirmedChildren.filter(c => c.needs_high_chair).length;
+
+    // Tische: lookup by id (from events.tables) and, for the restaurant/seating
+    // overview, how many of each table's seats are already taken by confirmed
+    // registrations.
+    const hasTables = ev.has_seating && ev.tables && ev.tables.length > 0;
+    const tableById = Object.fromEntries((ev.tables || []).map(tb => [tb.id, tb]));
+    // A child marked at_kindertisch actually sits at the separate children's
+    // table, not at the family's chosen table -- subtract them here so a
+    // table's occupancy reflects who is really sitting there.
+    const tableOccupancy = confirmed.reduce((acc, r) => {
+      if (!r.table_id) return acc;
+      const kindertischCountForReg = (childrenByReg[r.id] || []).filter(c => c.at_kindertisch).length;
+      const seatsAtTable = Math.max((r.guests_count || 0) - kindertischCountForReg, 0);
+      acc[r.table_id] = (acc[r.table_id] || 0) + seatsAtTable;
+      return acc;
+    }, {});
+    const tablesSummaryHtml = hasTables ? `
+      <div class="em-table-wrap" style="margin-top:8px;">
+        <table class="em-table">
+          <thead><tr><th>Tisch</th><th>Belegt</th></tr></thead>
+          <tbody>${ev.tables.map(tb => `<tr><td>${tb.name}</td><td>${tableOccupancy[tb.id] || 0} / ${tb.capacity}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+    ` : '';
+
+    area.innerHTML = `
+      <div class="em-card">
+        <p><a href="events.html">← Zurück zur Übersicht</a> · <a href="statistics.html?event=${ev.slug}">Statistik</a></p>
+        <h2>Teilnehmer: ${ev.title}</h2>
+        <p><strong>Angemeldete Personen (bestätigt):</strong> ${capacityText}</p>
+        ${capacityPct !== null ? `
+        <div style="background:var(--color-bg-card-alt); border-radius:6px; height:10px; overflow:hidden; margin:6px 0 14px;">
+          <div style="width:${capacityPct}%; background:${capacityBarColor}; height:100%;"></div>
+        </div>
+        ` : ''}
+        <p style="color:var(--color-text-muted); font-size:0.9em;">
+          Bestätigt: ${confirmed.length} · Warteliste: ${waitlisted.length} · Storniert: ${cancelled.length} · Anmeldungen insgesamt: ${regs.length}
+        </p>
+        ${hasFee ? `<p><strong>Teilnahmebeitrag:</strong> ${totalFeeConsent} Familien haben zugesagt · zugesagter Gesamtbetrag: ${totalFeeAmount.toFixed(2)} €</p>` : ''}
+        ${orderTotalsText ? `<p><strong>Vorbestellungen gesamt:</strong> ${orderTotalsText}</p>` : ''}
+        ${ev.has_kindertisch ? `<p><strong>Kindertisch:</strong> ${kindertischCount} Kinder am Kindertisch · ${withParentsCount} bei den Eltern${highChairCount ? ` · ${highChairCount} mit Kindersitz` : ''}</p>` : ''}
+        ${hasTables ? `<p style="margin-bottom:0;"><strong>Tische (bestätigte Anmeldungen):</strong></p>${tablesSummaryHtml}` : ''}
+        <button type="button" id="export-csv" class="button secondary" style="margin-top:8px;">Als CSV exportieren</button>
+      </div>
+      <div class="em-card">
+        <div class="em-table-wrap">
+        <table class="em-table" id="participants-table">
+          <thead>
+            <tr><th>Name</th><th>E-Mail</th><th>Telefon</th><th>Mitglied</th><th>Verifiziert</th><th>Gäste</th><th>Kinder</th>${hasTables ? '<th>Tisch</th>' : ''}${hasFee ? '<th>Beitrag</th>' : ''}<th>Vorbestellungen</th><th>Anmerkungen</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        </div>
+      </div>
+    `;
+
+    const tbody = document.querySelector('#participants-table tbody');
+    const colCount = (hasFee ? 11 : 10) + (hasTables ? 1 : 0);
+
+    tbody.innerHTML = regs.map(r => `
+      <tr>
+        <td>${r.full_name}</td>
+        <td>${r.email}</td>
+        <td>${r.phone || '—'}</td>
+        <td>${MEMBER_LABELS[r.member_status] ?? '—'}${r.member_status === 'no' ? (r.id_check_ack ? ' <span title="ID-Kopie zugesagt" style="color:#6f8f5f;">🪪✓</span>' : ' <span title="ID-Kopie noch nicht zugesagt" style="color:#b0554f;">🪪!</span>') : ''}</td>
+        <td>${verifiedEmails.has((r.email || '').toLowerCase()) ? '✓ geprüft' : '—'}</td>
+        <td>${r.guests_count}</td>
+        <td>${childrenSummary(childrenByReg[r.id] || [])}</td>
+        ${hasTables ? `<td>${tableById[r.table_id] ? tableById[r.table_id].name : '—'}</td>` : ''}
+        ${hasFee ? `<td>${r.fee_consent ? (r.fee_amount_charged != null ? Number(r.fee_amount_charged).toFixed(2) + ' €' : 'zugesagt') : '—'}</td>` : ''}
+        <td>${orderItemsSummary(orderItemsByReg[r.id] || [])}</td>
+        <td>${r.notes || '—'}</td>
+        <td>
+          <select class="status-select" data-id="${r.id}">
+            <option value="confirmed" ${r.status === 'confirmed' ? 'selected' : ''}>Bestätigt</option>
+            <option value="waitlist" ${r.status === 'waitlist' ? 'selected' : ''}>Warteliste</option>
+            <option value="cancelled" ${r.status === 'cancelled' ? 'selected' : ''}>Storniert</option>
+          </select>
+        </td>
+        <td><button type="button" class="button secondary small" data-delete="${r.id}" style="color:#cc0000; border-color:#cc0000;">Löschen</button></td>
+      </tr>
+    `).join('') || `<tr><td colspan="${colCount}">Noch keine Anmeldungen.</td></tr>`;
+
+    tbody.querySelectorAll('.status-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const { error } = await supabase.from('registrations').update({ status: sel.value }).eq('id', sel.dataset.id);
+        if (error) alert('Fehler: ' + error.message);
+      });
+    });
+
+    tbody.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Diese Anmeldung wirklich löschen?')) return;
+        const { error } = await supabase.from('registrations').delete().eq('id', btn.dataset.delete);
+        if (error) {
+          alert('Fehler beim Löschen: ' + error.message);
+          return;
+        }
+        loadParticipants();
+      });
+    });
+
+    document.getElementById('export-csv').addEventListener('click', () => {
+      exportCsv(ev, regs, childrenByReg, orderItemsByReg, hasFee, hasTables, tableById);
+    });
+  }
+
+  // Client-side CSV export (no backend needed) — opens directly in Excel/Numbers,
+  // or can be imported straight into Power BI / Tableau as a quick one-off report.
+  function csvField(value) {
+    const str = value === null || value === undefined ? '' : String(value);
+    return /[",\n;]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  }
+
+  function exportCsv(ev, regs, childrenByReg, orderItemsByReg, hasFee, hasTables, tableById) {
+    const headers = ['Name', 'E-Mail', 'Telefon', 'Mitglied', 'Gäste', 'Kinder'];
+    if (hasTables) headers.push('Tisch');
+    if (hasFee) headers.push('Beitrag zugesagt', 'Betrag (€)');
+    headers.push('Vorbestellungen', 'Anmerkungen', 'Status', 'Angemeldet am');
+
+    const rows = regs.map(r => {
+      const row = [
+        r.full_name,
+        r.email,
+        r.phone || '',
+        MEMBER_LABELS[r.member_status] ?? '',
+        r.guests_count,
+        childrenCsvSummary(childrenByReg[r.id] || []),
+      ];
+      if (hasTables) row.push(tableById[r.table_id] ? tableById[r.table_id].name : '');
+      if (hasFee) row.push(r.fee_consent ? 'Ja' : 'Nein', r.fee_amount_charged != null ? Number(r.fee_amount_charged).toFixed(2) : '');
+      row.push(
+        orderItemsSummary(orderItemsByReg[r.id] || []),
+        r.notes || '',
+        r.status,
+        new Date(r.created_at).toLocaleString('de-DE'),
+      );
+      return row;
+    });
+
+    const csv = [headers, ...rows].map(row => row.map(csvField).join(';')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `teilnehmer-${ev.slug}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+</script>
+
+</body>
+</html>

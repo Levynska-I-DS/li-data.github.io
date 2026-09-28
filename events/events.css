@@ -1,0 +1,78 @@
+/* Event Manager — extends style.css. Uses the same design tokens (--color-*) from there. */
+
+/* =====================================================
+   Public event pages theme — colors sampled directly from
+   Iryna's real IRGW/comJewnity event poster (Familienschabbat):
+   blush pink background, coral headline, dark charcoal text,
+   deep green as the grounding/header color, pink as a soft
+   secondary accent. Scoped to <body class="em-public-theme">
+   so only the public event pages (event.html, register.html,
+   sponsor.html, events/index.html) get it — the admin panel
+   keeps the site's ink+wine palette. Loads after style.css,
+   so these override the shared tokens for this page only.
+   ===================================================== */
+body.em-public-theme {
+  --color-bg: #FFF5F6;
+  --color-bg-section: #FFFFFF;
+  --color-bg-card-alt: #FDE7EA;
+  --color-border: #F3D6DA;
+  --color-text: #353C3B;
+  --color-text-muted: #6B716D;
+
+  --color-ink: #018D58;
+  --color-ink-2: #017A4C;
+  --color-on-ink: #FFF5F6;
+  --color-on-ink-muted: rgba(255, 245, 246, 0.78);
+  --color-on-ink-accent: #F7B8C4;
+
+  --color-accent: #EA5833;
+  --color-accent-hover: #C7431F;
+  --color-accent-soft: rgba(234, 88, 51, 0.12);
+
+  --color-accent-2: #EE738F;
+  --color-accent-2-hover: #D65873;
+}
+
+.em-container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+.em-card { background: var(--color-bg-section); border: 1px solid var(--color-border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+
+.em-form label { display: block; margin-top: 12px; font-weight: 600; color: var(--color-text); }
+.em-form input,
+.em-form textarea,
+.em-form select {
+  width: 100%;
+  padding: 10px;
+  margin-top: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-sizing: border-box;
+  font-family: inherit;
+  background: #fff;
+  color: var(--color-text);
+}
+
+.em-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+.em-table th, .em-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--color-border); }
+.row-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* Wide tables (many columns, e.g. Teilnehmer) scroll horizontally inside
+   their own card instead of pushing the whole page wider than the screen. */
+.em-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.em-table th { background: var(--color-bg-card-alt); color: var(--color-text); }
+
+.em-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.85em; }
+.em-badge.draft { background: var(--color-bg-card-alt); color: var(--color-text); }
+.em-badge.published { background: #6f8f5f; color: #fff; }
+.em-badge.closed { background: #b0a99e; color: #fff; }
+.em-badge-past { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; margin-left: 6px; background: #999; color: #fff; }
+.em-row-past { opacity: 0.55; }
+
+@media (max-width: 768px) {
+  .em-table, .em-table thead, .em-table tbody, .em-table th, .em-table td, .em-table tr { display: block; }
+  .em-table tr { margin-bottom: 12px; }
+}

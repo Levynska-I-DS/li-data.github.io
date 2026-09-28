@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anmeldung – Iryna Levynska</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>IRGW &middot; Veranstaltungen</h1>
+</header>
+
+<section class="em-container">
+  <div id="register-area"><p>Lädt…</p></div>
+</section>
+
+<footer>© 2026 Familienschabbat-Team · <a href="../datenschutz.html">Datenschutz</a></footer>
+
+<script type="module">
+  import { supabase } from '../shared/supabase-client.js';
+
+  // ---------------------------------------------------------------------
+  // i18n: static UI text only. Content Iryna enters herself (event title,
+  // description, location, room/sponsor/product names) is always shown as
+  // typed — it is not machine-translated. See architecture doc.
+  // ---------------------------------------------------------------------
+  const LOCALE = { de: 'de-DE', en: 'en-GB', ru: 'ru-RU' };
+
+  const STRINGS = {
+    de: {
+      missingSlug: 'Veranstaltung nicht angegeben.',
+      notFound: 'Veranstaltung nicht gefunden.',
+      closedTitle: 'Anmeldung geschlossen',
+      closedText: (date) => `Die Anmeldefrist für diese Veranstaltung ist am ${date} abgelaufen. Bitte wenden Sie sich direkt an die Organisatorin.`,
+      backToEvent: 'Zurück zur Veranstaltung',
+      registrationTitle: (title) => `Anmeldung: ${title}`,
+      codeGateIntro: 'Diese Veranstaltung ist nur mit einem persönlichen Einladungscode zugänglich.',
+      codeLabel: 'Dein Code',
+      codeInvalid: 'Dieser Code wurde nicht gefunden. Bitte prüfe die Schreibweise.',
+      continueBtn: 'Weiter',
+      contactName: 'Kontaktperson (Name)',
+      email: 'E-Mail',
+      phone: 'Telefon (optional)',
+      memberQuestion: 'Ist jemand aus Ihrer Familie Mitglied der IRGW?',
+      memberYes: 'Ja',
+      memberNo: 'Nein',
+      memberUnknown: 'Weiß ich nicht',
+      guestsCount: 'Anzahl Personen insgesamt (inkl. Kinder und Erwachsene)',
+      tableQuestion: 'Tisch für Ihre Anmeldung',
+      tableChoosePlaceholder: '– Bitte wählen –',
+      tableSeatsFree: (n) => `${n} Plätze frei`,
+      tableFull: 'Tisch voll',
+      errTable: 'Bitte einen Tisch wählen.',
+      childrenLabel: 'Kinder (optional, für Verpflegung und Allergien wichtig)',
+      addChild: '+ Kind hinzufügen',
+      childFirstName: 'Vorname',
+      childLastName: 'Nachname',
+      childBirthDate: 'Geburtsdatum',
+      childAllergies: 'Allergien / Ernährungshinweise (optional)',
+      kindertischQuestion: 'Sitzplatz des Kindes',
+      kindertischWithParents: 'Bei den Eltern',
+      kindertischAtTable: 'Am Kindertisch',
+      highChairLabel: 'Kindersitz / Hochstuhl benötigt',
+      under6Text: 'Kinder unter 6 Jahren können nur in Begleitung eines Elternteils teilnehmen. Ich bestätige das.',
+      mealCount: 'Für wie viele Personen Essen bestellen?',
+      orderItemsLabel: 'Zusätzliche Artikel vorbestellen (optional)',
+      priceSuffix: (price) => ` (${Number(price).toFixed(2)} € / Stück)`,
+      feeAmountFamily: (amount) => `Teilnahmebeitrag: ${amount} € pro Familie.`,
+      feeAmountPerson: (amount, count, total) => `Teilnahmebeitrag: ${amount} € pro Person × ${count} Personen = ${total} €.`,
+      feeAmountAdultChild: (adultAmount, childAmount, adults, children, total) => `Teilnahmebeitrag: ${adultAmount} € pro Erwachsenem, ${childAmount} € pro Kind (${adults} Erwachsene, ${children} Kinder) = ${total} €.`,
+      feeConsentGeneric: 'Ich bin damit einverstanden, den oben genannten Teilnahmebeitrag zu zahlen (für Nicht-Mitglieder).',
+      notes: 'Anmerkungen',
+      privacyConsent: (linkOpen, linkClose) => `Ich bin mit der Verarbeitung meiner Daten gemäß der ${linkOpen}Datenschutzerklärung${linkClose} einverstanden.`,
+      submitBtn: 'Anmelden',
+      errUnder6: 'Bitte bestätigen Sie den Hinweis zu Kindern unter 6 Jahren.',
+      errFee: 'Bitte bestätigen Sie den Teilnahmebeitrag.',
+      nonMemberHeading: 'Für Nicht-Mitglieder der IRGW',
+      idCheckText: (deadline) => `Bitte senden Sie zusätzlich bis spätestens ${deadline} eine Kopie Ihres Personalausweises oder Reisepasses zur Sicherheitskontrolle an sicherheit@irgw.de.`,
+      idCheckTextNoDeadline: 'Bitte senden Sie zusätzlich vor der Veranstaltung eine Kopie Ihres Personalausweises oder Reisepasses zur Sicherheitskontrolle an sicherheit@irgw.de.',
+      nonMemberAck: 'Ich bin kein Mitglied der IRGW und erkläre mich mit den oben genannten Bedingungen einverstanden.',
+      errNonMemberAck: 'Bitte bestätigen Sie die Bedingungen für Nicht-Mitglieder.',
+      errGeneric: (msg) => `Fehler: ${msg}`,
+      errChildren: (msg) => `Anmeldung gespeichert, aber Fehler bei den Kinderdaten: ${msg}`,
+      errOrders: (msg) => `Anmeldung gespeichert, aber Fehler bei den Vorbestellungen: ${msg}`,
+      thanksTitle: 'Vielen Dank!',
+      thanksText: (title) => `Ihre Anmeldung zu "${title}" wurde erfolgreich übermittelt.`,
+    },
+    en: {
+      missingSlug: 'No event specified.',
+      notFound: 'Event not found.',
+      closedTitle: 'Registration closed',
+      closedText: (date) => `The registration deadline for this event was on ${date}. Please contact the organizer directly.`,
+      backToEvent: 'Back to the event',
+      registrationTitle: (title) => `Registration: ${title}`,
+      codeGateIntro: 'This event is only accessible with a personal invitation code.',
+      codeLabel: 'Your code',
+      codeInvalid: 'This code was not found. Please check the spelling.',
+      continueBtn: 'Continue',
+      contactName: 'Contact person (name)',
+      email: 'Email',
+      phone: 'Phone (optional)',
+      memberQuestion: 'Is anyone in your family a member of the IRGW?',
+      memberYes: 'Yes',
+      memberNo: 'No',
+      memberUnknown: "I don't know",
+      guestsCount: 'Total number of people (including children and adults)',
+      tableQuestion: 'Table for your registration',
+      tableChoosePlaceholder: '– Please choose –',
+      tableSeatsFree: (n) => `${n} seats free`,
+      tableFull: 'Table full',
+      errTable: 'Please choose a table.',
+      childrenLabel: 'Children (optional, important for catering and allergies)',
+      addChild: '+ Add child',
+      childFirstName: 'First name',
+      childLastName: 'Last name',
+      childBirthDate: 'Date of birth',
+      childAllergies: 'Allergies / dietary notes (optional)',
+      kindertischQuestion: "Child's seat",
+      kindertischWithParents: 'With parents',
+      kindertischAtTable: "At the kids' table",
+      highChairLabel: 'High chair / booster seat needed',
+      under6Text: 'Children under 6 may only attend accompanied by a parent. I confirm this.',
+      mealCount: 'For how many people should food be ordered?',
+      orderItemsLabel: 'Pre-order additional items (optional)',
+      priceSuffix: (price) => ` (€${Number(price).toFixed(2)} / item)`,
+      feeAmountFamily: (amount) => `Participation fee: €${amount} per family.`,
+      feeAmountPerson: (amount, count, total) => `Participation fee: €${amount} per person × ${count} people = €${total}.`,
+      feeAmountAdultChild: (adultAmount, childAmount, adults, children, total) => `Participation fee: €${adultAmount} per adult, €${childAmount} per child (${adults} adults, ${children} children) = €${total}.`,
+      feeConsentGeneric: 'I agree to pay the participation fee stated above (for non-members).',
+      notes: 'Notes',
+      privacyConsent: (linkOpen, linkClose) => `I agree to the processing of my data in accordance with the ${linkOpen}privacy policy${linkClose}.`,
+      submitBtn: 'Register',
+      errUnder6: 'Please confirm the note about children under 6.',
+      errFee: 'Please confirm the participation fee.',
+      nonMemberHeading: 'For non-members of the IRGW',
+      idCheckText: (deadline) => `Please also send a copy of your ID card or passport for the security check to sicherheit@irgw.de by ${deadline} at the latest.`,
+      idCheckTextNoDeadline: 'Please also send a copy of your ID card or passport for the security check to sicherheit@irgw.de before the event.',
+      nonMemberAck: 'I am not a member of the IRGW and I agree to the conditions stated above.',
+      errNonMemberAck: 'Please confirm the conditions for non-members.',
+      errGeneric: (msg) => `Error: ${msg}`,
+      errChildren: (msg) => `Registration saved, but there was an error with the children's data: ${msg}`,
+      errOrders: (msg) => `Registration saved, but there was an error with the pre-orders: ${msg}`,
+      thanksTitle: 'Thank you!',
+      thanksText: (title) => `Your registration for "${title}" was submitted successfully.`,
+    },
+    ru: {
+      missingSlug: 'Мероприятие не указано.',
+      notFound: 'Мероприятие не найдено.',
+      closedTitle: 'Регистрация закрыта',
+      closedText: (date) => `Срок регистрации на это мероприятие истёк ${date}. Пожалуйста, свяжитесь с организатором напрямую.`,
+      backToEvent: 'Назад к мероприятию',
+      registrationTitle: (title) => `Регистрация: ${title}`,
+      codeGateIntro: 'Это мероприятие доступно только по персональному коду приглашения.',
+      codeLabel: 'Ваш код',
+      codeInvalid: 'Код не найден. Пожалуйста, проверьте правильность написания.',
+      continueBtn: 'Далее',
+      contactName: 'Контактное лицо (имя)',
+      email: 'Эл. почта',
+      phone: 'Телефон (необязательно)',
+      memberQuestion: 'Является ли кто-то из вашей семьи членом общины IRGW?',
+      memberYes: 'Да',
+      memberNo: 'Нет',
+      memberUnknown: 'Не знаю',
+      guestsCount: 'Общее количество человек (включая детей и взрослых)',
+      tableQuestion: 'Стол для вашей заявки',
+      tableChoosePlaceholder: '– Выберите –',
+      tableSeatsFree: (n) => `${n} мест свободно`,
+      tableFull: 'Мест нет',
+      errTable: 'Пожалуйста, выберите стол.',
+      childrenLabel: 'Дети (необязательно, важно для питания и аллергий)',
+      addChild: '+ Добавить ребёнка',
+      childFirstName: 'Имя',
+      childLastName: 'Фамилия',
+      childBirthDate: 'Дата рождения',
+      childAllergies: 'Аллергии / особенности питания (необязательно)',
+      kindertischQuestion: 'Где сидит ребёнок',
+      kindertischWithParents: 'С родителями',
+      kindertischAtTable: 'За детским столом (Kindertisch)',
+      highChairLabel: 'Нужен детский стульчик',
+      under6Text: 'Дети младше 6 лет могут участвовать только в сопровождении родителя. Я это подтверждаю.',
+      mealCount: 'На сколько человек заказать питание?',
+      orderItemsLabel: 'Предзаказ дополнительных товаров (необязательно)',
+      priceSuffix: (price) => ` (${Number(price).toFixed(2)} € / шт.)`,
+      feeAmountFamily: (amount) => `Взнос за участие: ${amount} € с семьи.`,
+      feeAmountPerson: (amount, count, total) => `Взнос за участие: ${amount} € с человека × ${count} чел. = ${total} €.`,
+      feeAmountAdultChild: (adultAmount, childAmount, adults, children, total) => `Взнос за участие: ${adultAmount} € со взрослого, ${childAmount} € с ребёнка (${adults} взр., ${children} дет.) = ${total} €.`,
+      feeConsentGeneric: 'Я согласен(на) оплатить указанный выше взнос за участие (для не-членов общины).',
+      notes: 'Примечания',
+      privacyConsent: (linkOpen, linkClose) => `Я согласен(на) на обработку моих данных согласно ${linkOpen}политике конфиденциальности${linkClose}.`,
+      submitBtn: 'Зарегистрироваться',
+      errUnder6: 'Пожалуйста, подтвердите пункт о детях младше 6 лет.',
+      errFee: 'Пожалуйста, подтвердите взнос за участие.',
+      nonMemberHeading: 'Для тех, кто не является членом общины IRGW',
+      idCheckText: (deadline) => `Пожалуйста, также отправьте копию удостоверения личности или паспорта для проверки безопасности на sicherheit@irgw.de не позднее ${deadline}.`,
+      idCheckTextNoDeadline: 'Пожалуйста, также отправьте копию удостоверения личности или паспорта для проверки безопасности на sicherheit@irgw.de до мероприятия.',
+      nonMemberAck: 'Я не являюсь членом общины IRGW и согласен(на) с указанными выше условиями.',
+      errNonMemberAck: 'Пожалуйста, подтвердите условия для не-членов общины.',
+      errGeneric: (msg) => `Ошибка: ${msg}`,
+      errChildren: (msg) => `Регистрация сохранена, но произошла ошибка с данными детей: ${msg}`,
+      errOrders: (msg) => `Регистрация сохранена, но произошла ошибка с предзаказом: ${msg}`,
+      thanksTitle: 'Спасибо!',
+      thanksText: (title) => `Ваша регистрация на "${title}" была успешно отправлена.`,
+    },
+  };
+
+  let lang = localStorage.getItem('em_lang') || 'de';
+  if (!STRINGS[lang]) lang = 'de';
+  let rerenderCurrent = () => {};
+
+  function t(key, ...args) {
+    const entry = STRINGS[lang][key];
+    return typeof entry === 'function' ? entry(...args) : entry;
+  }
+
+  function langBarHtml() {
+    const labels = { de: 'DE', en: 'EN', ru: 'RU' };
+    return `<div class="lang-switch" style="display:flex; gap:6px; justify-content:flex-end; margin-bottom:10px;">${
+      Object.keys(labels).map(code => `<button type="button" class="button secondary lang-btn" data-lang="${code}" style="padding:4px 12px; ${code === lang ? 'font-weight:700; text-decoration:underline;' : ''}">${labels[code]}</button>`).join('')
+    }</div>`;
+  }
+
+  // Every screen goes through render() so the language bar and its click
+  // handlers stay attached no matter which view (code gate / form / thanks
+  // / closed) is currently showing. onRerender re-draws the SAME view after
+  // a language switch, without re-fetching data from Supabase.
+  function render(innerHtml, onRerender) {
+    area.innerHTML = langBarHtml() + innerHtml;
+    rerenderCurrent = onRerender || (() => {});
+    area.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        lang = btn.dataset.lang;
+        localStorage.setItem('em_lang', lang);
+        rerenderCurrent();
+      });
+    });
+  }
+
+  const area = document.getElementById('register-area');
+  const params = new URLSearchParams(window.location.search);
+  const slug = params.get('event');
+  const codeFromUrl = params.get('code') || '';
+
+  async function init() {
+    if (!slug) {
+      render(`<div class="em-card"><p>${t('missingSlug')}</p></div>`, init);
+      return;
+    }
+
+    const { data: ev, error } = await supabase
+      .from('events')
+      .select('id, slug, title, starts_at, location, meal_type, non_member_fee, fee_mode, fee_amount_child, requires_code, order_products, registration_deadline, status, has_kindertisch, has_seating, tables')
+      .eq('slug', slug)
+      .single();
+
+    if (error || !ev) {
+      console.error('Supabase error loading event (slug=' + slug + '):', error);
+      render(`<div class="em-card"><p>${t('notFound')}</p></div>`, init);
+      return;
+    }
+
+    if (ev.registration_deadline && new Date() > new Date(ev.registration_deadline)) {
+      renderClosed(ev);
+    } else if (!ev.requires_code) {
+      renderForm(ev, null);
+    } else {
+      await tryUnlock(ev, codeFromUrl);
+    }
+  }
+
+  function renderClosed(ev) {
+    const dateStr = new Date(ev.registration_deadline).toLocaleString(LOCALE[lang]);
+    render(`
+      <div class="em-card">
+        <h2>${t('closedTitle')}</h2>
+        <p>${t('closedText', dateStr)}</p>
+        <a class="button secondary" href="event.html?event=${ev.slug}">${t('backToEvent')}</a>
+      </div>
+    `, () => renderClosed(ev));
+  }
+
+  async function tryUnlock(ev, code, showErrorIfEmpty) {
+    if (code) {
+      const { data: rows } = await supabase.rpc('validate_invitation', { p_slug: ev.slug, p_code: code });
+      const invitation = rows && rows[0];
+      if (invitation) {
+        renderForm(ev, invitation);
+        return;
+      }
+    }
+    renderCodeGate(ev, code && showErrorIfEmpty !== false);
+  }
+
+  function renderCodeGate(ev, showInvalidMessage) {
+    render(`
+      <div class="em-card">
+        ${ev.status !== 'published' ? '<p style="background:#fff3cd; color:#7a5c00; padding:6px 10px; border-radius:6px; font-size:0.85em;">Vorschau — dieses Event ist noch nicht veröffentlicht (Status: ' + ev.status + ') und für Besucher nicht sichtbar.</p>' : ''}
+        <h2>${t('registrationTitle', ev.title)}</h2>
+        <p>${t('codeGateIntro')}</p>
+        <form id="code-form" class="em-form">
+          <label for="code-input">${t('codeLabel')}</label>
+          <input type="text" id="code-input" required style="text-transform:uppercase;">
+          ${showInvalidMessage ? `<p style="color:#cc0000;">${t('codeInvalid')}</p>` : ''}
+          <button type="submit" class="button" style="margin-top:16px;">${t('continueBtn')}</button>
+        </form>
+      </div>
+    `, () => renderCodeGate(ev, showInvalidMessage));
+
+    document.getElementById('code-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const entered = document.getElementById('code-input').value.trim();
+      await tryUnlock(ev, entered, true);
+    });
+  }
+
+  function childRowHtml(idx, showKindertisch) {
+    return `
+      <div class="child-row" data-idx="${idx}" style="border:1px solid #ddd; border-radius:6px; padding:8px; margin-top:8px;">
+        <div style="display:flex; gap:8px; align-items:flex-end;">
+          <input type="text" class="child-first-name" placeholder="${t('childFirstName')}" style="flex:1; margin:0;">
+          <input type="text" class="child-last-name" placeholder="${t('childLastName')}" style="flex:1; margin:0;">
+          <label style="display:flex; flex-direction:column; font-size:0.8em; color:#555; margin:0; font-weight:normal;">
+            ${t('childBirthDate')}
+            <input type="date" class="child-birth-date" style="margin-top:2px;">
+          </label>
+          <button type="button" class="button secondary remove-child" style="padding:2px 10px;">×</button>
+        </div>
+        <input type="text" class="child-allergies" placeholder="${t('childAllergies')}" style="margin-top:6px;">
+        ${showKindertisch ? `
+        <div style="margin-top:8px; font-size:0.9em;">
+          <span style="color:#555;">${t('kindertischQuestion')}:</span>
+          <label style="font-weight:normal; margin-left:8px;"><input type="radio" name="kindertisch-${idx}" class="child-kindertisch" value="parents" checked style="width:auto;"> ${t('kindertischWithParents')}</label>
+          <label style="font-weight:normal; margin-left:8px;"><input type="radio" name="kindertisch-${idx}" class="child-kindertisch" value="table" style="width:auto;"> ${t('kindertischAtTable')}</label>
+        </div>
+        ` : ''}
+        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:0.9em; margin-top:6px;">
+          <input type="checkbox" class="child-high-chair" style="width:auto;"> ${t('highChairLabel')}
+        </label>
+      </div>
+    `;
+  }
+
+  // Age as of the event's date (falls back to today if the event has no start date) --
+  // computed from the birth date rather than typed in, so it never goes stale.
+  function ageFromBirthDate(birthDateStr, referenceDateStr) {
+    if (!birthDateStr) return null;
+    const birth = new Date(birthDateStr);
+    const reference = referenceDateStr ? new Date(referenceDateStr) : new Date();
+    let age = reference.getFullYear() - birth.getFullYear();
+    const hadBirthdayYet = (reference.getMonth() > birth.getMonth())
+      || (reference.getMonth() === birth.getMonth() && reference.getDate() >= birth.getDate());
+    if (!hadBirthdayYet) age -= 1;
+    return age;
+  }
+
+  function renderForm(ev, invitation) {
+    const showMeal = ev.meal_type && ev.meal_type !== 'none';
+    const hasFee = ev.non_member_fee && Number(ev.non_member_fee) > 0;
+
+    render(`
+      <div class="em-card">
+        <h2>${t('registrationTitle', ev.title)}</h2>
+        <p>${ev.starts_at ? new Date(ev.starts_at).toLocaleString(LOCALE[lang]) : ''} ${ev.location ? '· ' + ev.location : ''}</p>
+
+        <form id="register-form" class="em-form">
+          <label for="full_name">${t('contactName')}</label>
+          <input type="text" id="full_name" value="${invitation && invitation.guest_name ? invitation.guest_name : ''}" required>
+
+          <label for="email">${t('email')}</label>
+          <input type="email" id="email" required>
+
+          <label for="phone">${t('phone')}</label>
+          <input type="tel" id="phone">
+
+          <label for="member_status">${t('memberQuestion')}</label>
+          <select id="member_status">
+            <option value="yes">${t('memberYes')}</option>
+            <option value="no">${t('memberNo')}</option>
+            <option value="unknown" selected>${t('memberUnknown')}</option>
+          </select>
+
+          <label for="guests_count">${t('guestsCount')}</label>
+          <input type="number" id="guests_count" min="1" value="1" required>
+
+          ${ev.has_seating && ev.tables && ev.tables.length ? `
+          <div id="table-block" style="margin-top:8px;">
+            <label for="table_id">${t('tableQuestion')}</label>
+            <select id="table_id" required>
+              <option value="">${t('tableChoosePlaceholder')}</option>
+            </select>
+          </div>
+          ` : ''}
+
+          <label>${t('childrenLabel')}</label>
+          <div id="children-list"></div>
+          <button type="button" id="add-child" class="button secondary" style="margin-top:8px;">${t('addChild')}</button>
+
+          <div id="under6-block" style="display:none; margin-top:16px;">
+            <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal;">
+              <input type="checkbox" id="under6_ack" style="width:auto; margin-top:4px;">
+              ${t('under6Text')}
+            </label>
+          </div>
+
+          ${ev.order_products && ev.order_products.length ? `
+          <div id="order-items-block" style="margin-top:16px;">
+            <label>${t('orderItemsLabel')}</label>
+            <div id="order-items-list" style="display:flex; flex-direction:column; gap:8px;">
+              ${ev.order_products.map(p => `
+                <div class="order-item-row" data-name="${p.name}" data-price="${p.price ?? ''}" style="display:flex; align-items:center; gap:8px;">
+                  <span style="flex:2;">${p.name}${p.price ? t('priceSuffix', p.price) : ''}</span>
+                  <input type="number" class="order-item-qty" min="0" value="0" style="flex:1; margin:0;">
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          ` : ''}
+
+          <div id="non-member-block" style="display:none; margin-top:16px; border:1px solid #ddd; border-radius:6px; padding:10px 12px;">
+            <p style="font-weight:600; margin:0 0 8px;">${t('nonMemberHeading')}</p>
+            ${hasFee ? '<p id="fee-amount-line" style="font-weight:600; margin-bottom:8px;"></p>' : ''}
+            <p id="id-check-text" style="margin:0 0 8px;"></p>
+            <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal;">
+              <input type="checkbox" id="non_member_ack" style="width:auto; margin-top:4px;">
+              ${t('nonMemberAck')}
+            </label>
+          </div>
+
+          <label for="notes">${t('notes')}</label>
+          <textarea id="notes" rows="3"></textarea>
+
+          <div style="margin-top:16px;">
+            <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal;">
+              <input type="checkbox" id="privacy_consent" required style="width:auto; margin-top:4px;">
+              ${t('privacyConsent', `<a href="../datenschutz.html" target="_blank">`, '</a>')}
+            </label>
+          </div>
+
+          <p id="form-error" style="color:#cc0000; display:none;"></p>
+
+          <button type="submit" class="button" style="margin-top:16px;">${t('submitBtn')}</button>
+        </form>
+      </div>
+    `, () => renderForm(ev, invitation));
+
+    const form = document.getElementById('register-form');
+    const guestsInput = document.getElementById('guests_count');
+    const memberStatusSelect = document.getElementById('member_status');
+    const tableSelect = document.getElementById('table_id');
+    const childrenList = document.getElementById('children-list');
+    const addChildBtn = document.getElementById('add-child');
+    const under6Block = document.getElementById('under6-block');
+    const under6Ack = document.getElementById('under6_ack');
+    const nonMemberBlock = document.getElementById('non-member-block');
+    const nonMemberAck = document.getElementById('non_member_ack');
+    const idCheckText = document.getElementById('id-check-text');
+    const feeAmountLine = hasFee ? document.getElementById('fee-amount-line') : null;
+    const formError = document.getElementById('form-error');
+    let childIdx = 0;
+    let currentFeeAmount = 0;
+
+    // Table/seat picker: populated with remaining-capacity info from
+    // get_table_occupancy, a narrow SECURITY DEFINER function (see migration
+    // 020) that only ever returns aggregated seat counts per table -- never
+    // any personal data. Only confirmed registrations count as occupied, so
+    // a table only looks "full" once seats are actually confirmed there.
+    const hasTables = !!(ev.has_seating && ev.tables && ev.tables.length);
+    let tableOccupancy = {};
+
+    async function loadTableOccupancy() {
+      if (!hasTables) return;
+      const { data, error: occError } = await supabase.rpc('get_table_occupancy', { p_event_id: ev.id });
+      if (!occError && data) {
+        tableOccupancy = Object.fromEntries(data.map(row => [row.table_id, Number(row.occupied) || 0]));
+      }
+      renderTableOptions();
+    }
+
+    function renderTableOptions() {
+      if (!hasTables) return;
+      const previousValue = tableSelect.value;
+      const requested = Number(guestsInput.value) || 1;
+      tableSelect.innerHTML = `<option value="">${t('tableChoosePlaceholder')}</option>` + ev.tables.map(table => {
+        const occupied = tableOccupancy[table.id] || 0;
+        const free = Math.max(table.capacity - occupied, 0);
+        const isFull = free <= 0;
+        const label = `${table.name} — ${isFull ? t('tableFull') : t('tableSeatsFree', free)}`;
+        return `<option value="${table.id}" ${free < requested ? 'disabled' : ''}>${label}</option>`;
+      }).join('');
+      if (previousValue) tableSelect.value = previousValue;
+    }
+
+    // Recomputes the displayed participation fee whenever the guest count or the
+    // list of children changes. ev.fee_mode decides how non_member_fee (and, for
+    // adult_child, ev.fee_amount_child) combine with the current form state.
+    function updateFeeAmount() {
+      if (!hasFee) return;
+      const totalGuests = Number(guestsInput.value) || 0;
+      const childrenCount = childrenList.querySelectorAll('.child-row').length;
+      const rate = Number(ev.non_member_fee);
+      let text, total;
+      if (ev.fee_mode === 'person') {
+        total = rate * totalGuests;
+        text = t('feeAmountPerson', rate.toFixed(2), totalGuests, total.toFixed(2));
+      } else if (ev.fee_mode === 'adult_child') {
+        const childRate = Number(ev.fee_amount_child) || 0;
+        const adults = Math.max(totalGuests - childrenCount, 0);
+        total = rate * adults + childRate * childrenCount;
+        text = t('feeAmountAdultChild', rate.toFixed(2), childRate.toFixed(2), adults, childrenCount, total.toFixed(2));
+      } else {
+        total = rate;
+        text = t('feeAmountFamily', rate.toFixed(2));
+      }
+      currentFeeAmount = total;
+      feeAmountLine.textContent = text;
+    }
+
+    function updateNonMemberVisibility() {
+      const isNonMember = memberStatusSelect.value === 'no';
+      nonMemberBlock.style.display = isNonMember ? 'block' : 'none';
+      if (!isNonMember) nonMemberAck.checked = false;
+    }
+
+    // Reuses the event's own Anmeldeschluss (registration_deadline) as the deadline
+    // for both the fee payment and the ID copy -- one date for a non-member to keep
+    // in mind, instead of introducing a second, separate deadline field.
+    idCheckText.textContent = ev.registration_deadline
+      ? t('idCheckText', new Date(ev.registration_deadline).toLocaleDateString(LOCALE[lang]))
+      : t('idCheckTextNoDeadline');
+
+    function updateUnder6Visibility() {
+      const anyUnder6 = [...childrenList.querySelectorAll('.child-row')].some(row => {
+        const birthDate = row.querySelector('.child-birth-date').value;
+        if (!birthDate) return false;
+        const age = ageFromBirthDate(birthDate, ev.starts_at);
+        return age !== null && age < 6;
+      });
+      under6Block.style.display = anyUnder6 ? 'block' : 'none';
+      if (!anyUnder6) under6Ack.checked = false;
+    }
+
+    function addChildRow() {
+      childIdx += 1;
+      childrenList.insertAdjacentHTML('beforeend', childRowHtml(childIdx, ev.has_kindertisch));
+      const row = childrenList.lastElementChild;
+      row.querySelector('.remove-child').addEventListener('click', () => {
+        row.remove();
+        updateUnder6Visibility();
+        updateFeeAmount();
+      });
+      row.querySelector('.child-birth-date').addEventListener('change', updateUnder6Visibility);
+      updateFeeAmount();
+    }
+
+    addChildBtn.addEventListener('click', addChildRow);
+    guestsInput.addEventListener('input', updateFeeAmount);
+    if (hasTables) guestsInput.addEventListener('input', renderTableOptions);
+    memberStatusSelect.addEventListener('change', updateNonMemberVisibility);
+    updateFeeAmount();
+    updateNonMemberVisibility();
+    loadTableOccupancy();
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formError.style.display = 'none';
+
+      const anyUnder6 = under6Block.style.display === 'block';
+      if (anyUnder6 && !under6Ack.checked) {
+        formError.textContent = t('errUnder6');
+        formError.style.display = 'block';
+        return;
+      }
+      if (memberStatusSelect.value === 'no' && !nonMemberAck.checked) {
+        formError.textContent = t('errNonMemberAck');
+        formError.style.display = 'block';
+        return;
+      }
+      if (hasTables && !tableSelect.value) {
+        formError.textContent = t('errTable');
+        formError.style.display = 'block';
+        return;
+      }
+
+      const payload = {
+        event_id: ev.id,
+        full_name: document.getElementById('full_name').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        phone: document.getElementById('phone').value.trim() || null,
+        member_status: memberStatusSelect.value,
+        lang: lang,
+        table_id: hasTables ? (tableSelect.value || null) : null,
+        guests_count: Number(guestsInput.value) || 1,
+        meal_count: Number(guestsInput.value) || 1,
+        notes: document.getElementById('notes').value.trim() || null,
+        privacy_consent: document.getElementById('privacy_consent').checked,
+        fee_consent: (hasFee && memberStatusSelect.value === 'no') ? nonMemberAck.checked : null,
+        id_check_ack: memberStatusSelect.value === 'no' ? nonMemberAck.checked : null,
+        fee_amount_charged: (hasFee && memberStatusSelect.value === 'no') ? currentFeeAmount : null,
+        under6_supervision_ack: anyUnder6 ? under6Ack.checked : null,
+      };
+
+      const { data: inserted, error } = await supabase.from('registrations').insert(payload).select().single();
+
+      if (error) {
+        formError.textContent = t('errGeneric', error.message);
+        formError.style.display = 'block';
+        return;
+      }
+
+      if (invitation) {
+        await supabase.rpc('redeem_invitation', { p_invitation_id: invitation.invitation_id, p_registration_id: inserted.id });
+      }
+
+      const childRows = [...childrenList.querySelectorAll('.child-row')].map(row => {
+        const birthDate = row.querySelector('.child-birth-date').value || null;
+        const kindertischChoice = row.querySelector('.child-kindertisch:checked');
+        return {
+          registration_id: inserted.id,
+          first_name: row.querySelector('.child-first-name').value.trim() || null,
+          last_name: row.querySelector('.child-last-name').value.trim() || null,
+          birth_date: birthDate,
+          age: ageFromBirthDate(birthDate, ev.starts_at),
+          allergies: row.querySelector('.child-allergies').value.trim() || null,
+          at_kindertisch: kindertischChoice ? kindertischChoice.value === 'table' : null,
+          needs_high_chair: row.querySelector('.child-high-chair').checked,
+        };
+      });
+
+      if (childRows.length) {
+        const { error: childError } = await supabase.from('registration_children').insert(childRows);
+        if (childError) {
+          formError.textContent = t('errChildren', childError.message);
+          formError.style.display = 'block';
+          return;
+        }
+      }
+
+      const orderItemRows = [...document.querySelectorAll('.order-item-row')].map(row => {
+        const qty = Number(row.querySelector('.order-item-qty').value) || 0;
+        if (qty <= 0) return null;
+        return {
+          registration_id: inserted.id,
+          product_name: row.dataset.name,
+          unit_price: row.dataset.price ? Number(row.dataset.price) : null,
+          quantity: qty,
+        };
+      }).filter(Boolean);
+
+      if (orderItemRows.length) {
+        const { error: orderError } = await supabase.from('registration_order_items').insert(orderItemRows);
+        if (orderError) {
+          formError.textContent = t('errOrders', orderError.message);
+          formError.style.display = 'block';
+          return;
+        }
+      }
+
+      render(`
+        <div class="em-card">
+          <h2>${t('thanksTitle')}</h2>
+          <p>${t('thanksText', ev.title)}</p>
+          <a class="button" href="event.html?event=${ev.slug}">${t('backToEvent')}</a>
+        </div>
+      `, () => { /* thank-you screen: nothing to re-fetch, language switch just re-renders same text */
+        render(`
+          <div class="em-card">
+            <h2>${t('thanksTitle')}</h2>
+            <p>${t('thanksText', ev.title)}</p>
+            <a class="button" href="event.html?event=${ev.slug}">${t('backToEvent')}</a>
+          </div>
+        `, rerenderCurrent);
+      });
+    });
+  }
+
+  init();
+</script>
+
+</body>
+</html>

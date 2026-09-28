@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veranstaltungen – Iryna Levynska</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>Iryna Levynska</h1>
+  <nav>
+    <a href="../index.html">Start</a>
+    <a href="../portfolio.html">Projekte</a>
+    <a href="../achievements.html">Zertifikate</a>
+    <a href="../contact.html">Kontakt</a>
+    <a href="index.html">Veranstaltungen</a>
+  </nav>
+</header>
+
+<section class="em-container">
+  <h2>Kommende Veranstaltungen</h2>
+  <div id="events-list"><p>Lädt…</p></div>
+</section>
+
+<footer>© 2026 Familienschabbat-Team · <a href="../datenschutz.html">Datenschutz</a> <a href="../app/login.html" class="admin-dot" aria-label="Verwaltung"></a></footer>
+
+<script type="module">
+  import { supabase } from '../shared/supabase-client.js';
+
+  // Labels for the meal_type column, shown on the public event cards.
+  const MEAL_LABELS = { meal: 'Mahlzeit', buffet: 'Buffet', snack: 'Kleiner Imbiss' };
+
+  const list = document.getElementById('events-list');
+
+  const { data, error } = await supabase
+    .from('events')
+    .select('slug, title, description, starts_at, location, image_url, meal_type')
+    .eq('status', 'published')
+    .order('starts_at', { ascending: true });
+
+  if (error) {
+    list.innerHTML = `<p>Fehler beim Laden: ${error.message}</p>`;
+  } else if (!data.length) {
+    list.innerHTML = '<p>Aktuell keine Veranstaltungen geplant.</p>';
+  } else {
+    list.innerHTML = data.map(ev => `
+      <div class="em-card">
+        ${ev.image_url ? `<img src="${ev.image_url}" alt="${ev.title}" style="width:100%; max-width:400px; border-radius:8px; display:block; margin-bottom:12px;">` : ''}
+        <h3>${ev.title}</h3>
+        <p>${ev.starts_at ? new Date(ev.starts_at).toLocaleString('de-DE') : ''} ${ev.location ? '· ' + ev.location : ''}</p>
+        <p>${ev.description || ''}</p>
+        ${ev.meal_type && ev.meal_type !== 'none' ? `<p><em>Verpflegung: ${MEAL_LABELS[ev.meal_type] || ev.meal_type}</em></p>` : ''}
+        <a class="button" href="event.html?event=${ev.slug}">Details</a>
+      </div>
+    `).join('');
+  }
+</script>
+
+</body>
+</html>

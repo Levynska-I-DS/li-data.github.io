@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Einladungen – Event Manager</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../events/events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>Event Manager</h1>
+  <nav>
+    <a href="events.html">Veranstaltungen</a>
+    <a href="members.html">Mitglieder</a>
+    <a href="#" id="logout-link">Abmelden</a>
+  </nav>
+</header>
+
+<section class="em-container">
+  <div id="invitations-area"><p>Lädt…</p></div>
+</section>
+
+<footer>© 2026 Familienschabbat-Team</footer>
+
+<script type="module">
+  import { supabase } from '../../shared/supabase-client.js';
+  import { requireAuth, logout } from '../../shared/require-auth.js';
+
+  await requireAuth('../login.html');
+
+  document.getElementById('logout-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    logout('../login.html');
+  });
+
+  const area = document.getElementById('invitations-area');
+  const slug = new URLSearchParams(window.location.search).get('event');
+
+  if (!slug) {
+    area.innerHTML = '<p>Keine Veranstaltung angegeben. <a href="events.html">Zurück zur Übersicht</a>.</p>';
+  } else {
+    await init();
+  }
+
+  let ev = null;
+
+  // Short, unambiguous codes: no 0/O/1/I/L to avoid confusion when read aloud or by hand.
+  const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  function makeCode() {
+    let code = '';
+    for (let i = 0; i < 6; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+    return code;
+  }
+
+  async function init() {
+    const { data, error } = await supabase
+      .from('events')
+      .select('id, slug, title, requires_code')
+      .eq('slug', slug)
+      .single();
+
+    if (error || !data) {
+      area.innerHTML = '<p>Veranstaltung nicht gefunden. <a href="events.html">Zurück zur Übersicht</a>.</p>';
+      return;
+    }
+    ev = data;
+
+    area.innerHTML = `
+      <div class="em-card">
+        <p><a href="events.html">← Zurück zur Übersicht</a></p>
+        <h2>Einladungen: ${ev.title}</h2>
+        ${ev.requires_code
+          ? '<p>Diese Veranstaltung ist nur mit einem Code aus dieser Liste zugänglich.</p>'
+          : '<p style="color:#996600;">Diese Veranstaltung ist aktuell noch <strong>ohne</strong> Code für alle mit dem Link zugänglich. Aktiviere „Nur mit persönlichem Einladungscode zugänglich“ beim Bearbeiten der Veranstaltung, um die Codes hier zur Pflicht zu machen.</p>'}
+      </div>
+
+      <div class="em-card">
+        <h3>Neue Einladungen erstellen</h3>
+        <p style="font-size:0.9em; color:#555;">Ein Name pro Zeile. Leere Zeilen werden übersprungen; ohne Namen wird ein anonymer Code erzeugt.</p>
+        <form id="bulk-form" class="em-form">
+          <textarea id="bulk-names" rows="4" placeholder="Max Mustermann&#10;Familie Cohen&#10;..."></textarea>
+          <button type="submit" class="button" style="margin-top:12px;">Codes erzeugen</button>
+        </form>
+        <p id="bulk-error" style="color:#cc0000; display:none;"></p>
+      </div>
+
+      <div class="em-card">
+        <h3>Codes</h3>
+        <div class="em-table-wrap">
+        <table class="em-table" id="invitations-table">
+          <thead>
+            <tr><th>Name</th><th>Code</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('bulk-form').addEventListener('submit', onBulkCreate);
+
+    await loadInvitations();
+  }
+
+  async function loadInvitations() {
+    const { data: rows, error } = await supabase
+      .from('event_invitations')
+      .select('*')
+      .eq('event_id', ev.id)
+      .order('created_at', { ascending: false });
+
+    const tbody = document.querySelector('#invitations-table tbody');
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="4">Fehler: ${error.message}</td></tr>`;
+      return;
+    }
+
+    const registerBase = new URL('../../events/register.html', window.location.href).href;
+
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${r.guest_name || '—'}</td>
+        <td><code>${r.code}</code></td>
+        <td>${r.registration_id ? 'benutzt (angemeldet)' : 'offen'}</td>
+        <td>
+          <div class="row-actions">
+            <button type="button" class="button secondary small" data-copy="${r.code}">Link kopieren</button>
+            <button type="button" class="button secondary small" data-delete="${r.id}" style="color:#cc0000; border-color:#cc0000;">Löschen</button>
+          </div>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="4">Noch keine Einladungen.</td></tr>';
+
+    tbody.querySelectorAll('[data-copy]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const link = `${registerBase}?event=${ev.slug}&code=${btn.dataset.copy}`;
+        try {
+          await navigator.clipboard.writeText(link);
+          btn.textContent = 'Kopiert!';
+          setTimeout(() => { btn.textContent = 'Link kopieren'; }, 1500);
+        } catch {
+          prompt('Link kopieren:', link);
+        }
+      });
+    });
+
+    tbody.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Diesen Code wirklich löschen?')) return;
+        const { error: delError } = await supabase.from('event_invitations').delete().eq('id', btn.dataset.delete);
+        if (delError) {
+          alert('Fehler beim Löschen: ' + delError.message);
+          return;
+        }
+        loadInvitations();
+      });
+    });
+  }
+
+  async function onBulkCreate(e) {
+    e.preventDefault();
+    const bulkError = document.getElementById('bulk-error');
+    bulkError.style.display = 'none';
+
+    const namesInput = document.getElementById('bulk-names');
+    const names = namesInput.value.split('\n').map(n => n.trim()).filter(Boolean);
+    const rows = (names.length ? names : ['']).map(name => ({
+      event_id: ev.id,
+      guest_name: name || null,
+      code: makeCode(),
+    }));
+
+    const { error } = await supabase.from('event_invitations').insert(rows);
+    if (error) {
+      bulkError.textContent = 'Fehler: ' + error.message + ' (bei einem Code-Zusammenstoß bitte einfach nochmal versuchen)';
+      bulkError.style.display = 'block';
+      return;
+    }
+
+    namesInput.value = '';
+    await loadInvitations();
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veranstaltungen – Event Manager</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../events/events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>Event Manager</h1>
+  <nav>
+    <a href="events.html">Veranstaltungen</a>
+    <a href="statistics.html">Statistik</a>
+    <a href="members.html">Mitglieder</a>
+    <a href="#" id="logout-link">Abmelden</a>
+  </nav>
+</header>
+
+<section class="em-container">
+
+  <div class="em-card">
+    <h2 id="form-title">Neue Veranstaltung</h2>
+    <form id="event-form" class="em-form">
+      <input type="hidden" id="event-id">
+      <input type="hidden" id="image-url">
+
+      <label for="title">Titel</label>
+      <input type="text" id="title" required>
+
+      <label for="slug">Link-Kennung (wird automatisch aus dem Titel erzeugt)</label>
+      <input type="text" id="slug" required>
+
+      <label for="description">Beschreibung</label>
+      <p style="margin:6px 0 4px; font-size:0.9em; color:#555;">Zielgruppe (Klick fügt Text in die Beschreibung ein):</p>
+      <div id="audience-presets" style="margin-bottom:6px;">
+        <button type="button" class="button secondary preset-btn" data-text="Für Familien. ">Für Familien</button>
+        <button type="button" class="button secondary preset-btn" data-text="Für Kinder (0–6 Jahre). ">Kinder 0–6</button>
+        <button type="button" class="button secondary preset-btn" data-text="Für Kinder (7–12 Jahre). ">Kinder 7–12</button>
+        <button type="button" class="button secondary preset-btn" data-text="Für Jugendliche (13–18 Jahre). ">Jugendliche 13–18</button>
+        <button type="button" class="button secondary preset-btn" data-text="Für Senioren. ">Für Senioren</button>
+        <button type="button" class="button secondary preset-btn" data-text="Für alle. ">Für alle</button>
+      </div>
+      <div id="membership-presets" style="margin-bottom:6px;">
+        <button type="button" class="button secondary preset-btn" data-text="Für Gemeindemitglieder. ">Gemeindemitglieder</button>
+        <button type="button" class="button secondary preset-btn" data-text="Nur für Gemeindemitglieder. ">Nur Gemeindemitglieder</button>
+        <button type="button" class="button secondary preset-btn" data-text="Für Gäste und Nicht-Gemeindemitglieder willkommen. ">Gäste willkommen</button>
+      </div>
+      <textarea id="description" rows="3" style="margin-top:4px;"></textarea>
+
+      <label for="starts_at">Beginn</label>
+      <input type="datetime-local" id="starts_at">
+
+      <label for="location">Ort</label>
+      <input type="text" id="location">
+
+      <label for="capacity">Kapazität (leer = unbegrenzt)</label>
+      <input type="number" id="capacity" min="1">
+
+      <label for="registration-deadline">Anmeldeschluss (leer = keine Frist)</label>
+      <input type="datetime-local" id="registration-deadline">
+
+      <div style="margin-top:16px;">
+        <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal;">
+          <input type="checkbox" id="requires-code" style="width:auto; margin-top:4px;">
+          Nur mit persönlichem Einladungscode zugänglich (Codes verwaltest du unter „Einladungen“ in der Liste unten).
+        </label>
+      </div>
+
+      <div style="margin-top:16px;">
+        <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal;">
+          <input type="checkbox" id="has-kindertisch" style="width:auto; margin-top:4px;">
+          Kindertisch anbieten (Eltern können bei der Anmeldung wählen, ob ihr Kind separat am Kindertisch oder bei ihnen sitzt).
+        </label>
+      </div>
+
+      <div style="margin-top:16px;">
+        <label style="display:flex; align-items:flex-start; gap:8px; font-weight:normal;">
+          <input type="checkbox" id="has-seating" style="width:auto; margin-top:4px;">
+          Tischwahl anbieten (Gäste wählen bei der Anmeldung einen bestimmten Tisch für ihre ganze Anmeldung).
+        </label>
+      </div>
+
+      <label>Tische (Name und Plätze pro Tisch — nur für Gäste sichtbar, wenn „Tischwahl anbieten" oben aktiviert ist)</label>
+      <div id="tables-list" style="display:flex; flex-direction:column; gap:10px; margin-bottom:8px;"></div>
+      <button type="button" id="add-table" class="button secondary" style="margin-bottom:16px;">+ weiterer Tisch</button>
+
+      <label>Räume (welche Räume sind für diese Veranstaltung reserviert?)</label>
+      <div id="fixed-rooms" style="display:flex; flex-direction:column; gap:10px; margin-bottom:8px;"></div>
+      <div id="custom-rooms" style="display:flex; flex-direction:column; gap:10px; margin-bottom:8px;"></div>
+      <button type="button" id="add-custom-room" class="button secondary" style="margin-bottom:16px;">+ weiterer Raum</button>
+
+      <label>Sponsoring-Kategorien (was können Besucher für diese Veranstaltung sponsern?)</label>
+      <div id="fixed-sponsor-categories" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;"></div>
+      <div id="custom-sponsor-categories" style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;"></div>
+      <button type="button" id="add-custom-sponsor-category" class="button secondary" style="margin-bottom:16px;">+ weitere Kategorie</button>
+
+      <label>Zusätzliche Artikel zum Vorbestellen (z. B. Getränke, Alkohol) — Name und Preis pro Stück</label>
+      <div id="order-products" style="display:flex; flex-direction:column; gap:10px; margin-bottom:8px;"></div>
+      <button type="button" id="add-order-product" class="button secondary" style="margin-bottom:16px;">+ weiterer Artikel</button>
+
+      <label for="meal-type">Verpflegung</label>
+      <select id="meal-type">
+        <option value="none">Ohne Mahlzeit</option>
+        <option value="meal">Mahlzeit (volles Essen)</option>
+        <option value="buffet">Buffet</option>
+        <option value="snack">Kleiner Imbiss (Fingerfood)</option>
+      </select>
+
+      <label for="fee-mode">Teilnahmebeitrag für Nicht-Mitglieder — Art der Berechnung</label>
+      <select id="fee-mode">
+        <option value="family">Fester Betrag pro Familie/Anmeldung</option>
+        <option value="person">Betrag pro Person (× Anzahl Personen)</option>
+        <option value="adult_child">Unterschiedlich: Erwachsene / Kinder</option>
+      </select>
+
+      <label for="non-member-fee" id="non-member-fee-label">Betrag (€, leer = kostenlos für alle)</label>
+      <input type="number" id="non-member-fee" min="0" step="0.01">
+
+      <div id="fee-amount-child-block" style="display:none;">
+        <label for="fee-amount-child">Betrag pro Kind (€)</label>
+        <input type="number" id="fee-amount-child" min="0" step="0.01">
+      </div>
+
+      <label for="status">Status</label>
+      <select id="status">
+        <option value="draft">Entwurf</option>
+        <option value="published">Veröffentlicht</option>
+        <option value="closed">Geschlossen</option>
+      </select>
+
+      <label for="image">Bild / Flyer (optional)</label>
+      <input type="file" id="image" accept="image/*">
+      <div id="image-preview" style="margin-top:8px;"></div>
+
+      <p id="form-error" style="color:#cc0000; display:none;"></p>
+
+      <button type="submit" class="button" style="margin-top:16px;">Speichern</button>
+      <button type="button" id="cancel-edit" class="button secondary" style="display:none; margin-top:16px;">Abbrechen</button>
+    </form>
+  </div>
+
+  <div class="em-card">
+    <h2>Alle Veranstaltungen</h2>
+    <div class="em-table-wrap">
+    <table class="em-table" id="events-table">
+      <thead>
+        <tr><th>Titel</th><th>Datum</th><th>Status</th><th>Verpflegung</th><th>Räume</th><th>Link</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+
+</section>
+
+<footer>© 2026 Familienschabbat-Team</footer>
+
+<script type="module">
+  import { supabase } from '../../shared/supabase-client.js';
+  import { requireAuth, logout } from '../../shared/require-auth.js';
+
+  await requireAuth('../login.html');
+
+  document.getElementById('logout-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    logout('../login.html');
+  });
+
+  // Turns any title (German, Russian, anything) into a valid URL-safe slug.
+  const CYRILLIC_MAP = {
+    а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',
+    к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',
+    х:'h',ц:'ts',ч:'ch',ш:'sh',щ:'sch',ъ:'',ы:'y',ь:'',э:'e',ю:'yu',я:'ya'
+  };
+  function slugify(str) {
+    return (str || '')
+      .toLowerCase()
+      .split('')
+      .map(ch => (ch in CYRILLIC_MAP ? CYRILLIC_MAP[ch] : ch))
+      .join('')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  // datetime-local inputs give/take a naive "YYYY-MM-DDTHH:MM" string with no
+  // timezone. `starts_at`/`registration_deadline` are stored as timestamptz.
+  // Sending the naive string straight through made Postgres read it as UTC,
+  // so a time typed in the admin (local, e.g. CEST) came back shifted by the
+  // timezone offset everywhere it's displayed with toLocaleString(). These
+  // two helpers convert explicitly using the browser's local timezone so the
+  // wall-clock time typed here matches what's shown on the public pages.
+  function localInputToISO(value) {
+    if (!value) return null;
+    return new Date(value).toISOString();
+  }
+
+  function isoToLocalInput(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function updateFeeModeUI() {
+    const mode = feeModeSelect.value;
+    feeAmountChildBlock.style.display = mode === 'adult_child' ? 'block' : 'none';
+    nonMemberFeeLabel.textContent = mode === 'adult_child'
+      ? 'Betrag pro Erwachsenem (€, leer = kostenlos für alle)'
+      : mode === 'person'
+      ? 'Betrag pro Person (€, leer = kostenlos für alle)'
+      : 'Betrag pro Familie/Anmeldung (€, leer = kostenlos für alle)';
+  }
+
+  // Labels for the meal_type column, shown in the admin table.
+  const MEAL_LABELS = { none: '—', meal: 'Mahlzeit', buffet: 'Buffet', snack: 'Imbiss' };
+
+  // Predefined rooms/spaces that can be reserved for an event (each gets its own optional layout image).
+  const FIXED_ROOMS = ['Religionsschule Zimmer 1', 'Religionsschule Zimmer 2', 'Jugendzentrum', 'Gemeindesaal', 'Mehrzweckraum', 'Halle', 'Sportplatz', 'Hof'];
+
+  // Default sponsorship categories from the original project brief; editable per event below.
+  const FIXED_SPONSOR_CATEGORIES = ['Salat-Dekoration', 'Blumen', 'Zusätzliche Getränke', 'Kinder-Cocktailbar'];
+
+  const form = document.getElementById('event-form');
+  const formError = document.getElementById('form-error');
+  const cancelBtn = document.getElementById('cancel-edit');
+  const formTitle = document.getElementById('form-title');
+  const tbody = document.querySelector('#events-table tbody');
+  const titleInput = document.getElementById('title');
+  const slugInput = document.getElementById('slug');
+  const descriptionInput = document.getElementById('description');
+  const mealTypeSelect = document.getElementById('meal-type');
+  const nonMemberFeeInput = document.getElementById('non-member-fee');
+  const feeModeSelect = document.getElementById('fee-mode');
+  const feeAmountChildBlock = document.getElementById('fee-amount-child-block');
+  const feeAmountChildInput = document.getElementById('fee-amount-child');
+  const nonMemberFeeLabel = document.getElementById('non-member-fee-label');
+  const imageInput = document.getElementById('image');
+  const imageUrlField = document.getElementById('image-url');
+  const imagePreview = document.getElementById('image-preview');
+  const fixedRoomsContainer = document.getElementById('fixed-rooms');
+  const customRoomsContainer = document.getElementById('custom-rooms');
+  const addCustomRoomBtn = document.getElementById('add-custom-room');
+  const requiresCodeInput = document.getElementById('requires-code');
+  const hasKindertischInput = document.getElementById('has-kindertisch');
+  const hasSeatingInput = document.getElementById('has-seating');
+  const tablesListContainer = document.getElementById('tables-list');
+  const addTableBtn = document.getElementById('add-table');
+  const fixedSponsorCategoriesContainer = document.getElementById('fixed-sponsor-categories');
+  const customSponsorCategoriesContainer = document.getElementById('custom-sponsor-categories');
+  const addCustomSponsorCategoryBtn = document.getElementById('add-custom-sponsor-category');
+  const orderProductsContainer = document.getElementById('order-products');
+  const addOrderProductBtn = document.getElementById('add-order-product');
+
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      descriptionInput.value = (descriptionInput.value ? descriptionInput.value + ' ' : '') + btn.dataset.text;
+      descriptionInput.focus();
+    });
+  });
+
+  let slugTouched = false;
+  slugInput.addEventListener('input', () => { slugTouched = true; });
+  slugInput.addEventListener('blur', () => { slugInput.value = slugify(slugInput.value); });
+  titleInput.addEventListener('input', () => {
+    if (!slugTouched) slugInput.value = slugify(titleInput.value);
+  });
+
+  imageInput.addEventListener('change', () => {
+    const file = imageInput.files[0];
+    if (file) {
+      imagePreview.innerHTML = `<img src="${URL.createObjectURL(file)}" style="max-width:200px; border-radius:6px;">`;
+    }
+  });
+
+  // --- Rooms (Räume): each fixed room is a checkbox that reveals its own optional image upload;
+  // "own" rooms are free-text rows added on demand, same shape (name + optional image).
+
+  function makeRoomItem(name, { removable = false } = {}) {
+    const item = document.createElement('div');
+    item.className = 'room-item';
+    item.style.cssText = 'border:1px solid #ddd; border-radius:6px; padding:8px;';
+    item.dataset.imageUrl = '';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:8px;';
+
+    let nameEl;
+    let checkbox;
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.className = 'room-image-input';
+
+    if (removable) {
+      nameEl = document.createElement('input');
+      nameEl.type = 'text';
+      nameEl.placeholder = 'Raum-Name';
+      nameEl.className = 'room-name-input';
+      nameEl.value = name || '';
+      nameEl.style.cssText = 'flex:1; margin:0;';
+      fileInput.style.cssText = 'margin-top:6px;';
+      item.nameInput = nameEl;
+    } else {
+      checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'room-checkbox';
+      checkbox.style.width = 'auto';
+      checkbox.addEventListener('change', () => {
+        fileInput.style.display = checkbox.checked ? 'block' : 'none';
+      });
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;';
+      label.appendChild(checkbox);
+      label.append(name);
+      nameEl = label;
+      fileInput.style.cssText = 'display:none; margin-top:6px;';
+      item.checkbox = checkbox;
+    }
+    row.appendChild(nameEl);
+
+    if (removable) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'button secondary';
+      removeBtn.textContent = '×';
+      removeBtn.style.cssText = 'padding:2px 10px;';
+      removeBtn.addEventListener('click', () => item.remove());
+      row.appendChild(removeBtn);
+    }
+
+    item.appendChild(row);
+
+    const preview = document.createElement('div');
+    preview.className = 'room-image-preview';
+    preview.style.marginTop = '6px';
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (file) {
+        preview.innerHTML = `<img src="${URL.createObjectURL(file)}" style="max-width:120px; border-radius:6px;">`;
+      }
+    });
+
+    item.appendChild(fileInput);
+    item.appendChild(preview);
+    item.fileInput = fileInput;
+    item.preview = preview;
+    return item;
+  }
+
+  function renderFixedRooms() {
+    fixedRoomsContainer.innerHTML = '';
+    FIXED_ROOMS.forEach(name => {
+      const item = makeRoomItem(name, { removable: false });
+      item.dataset.roomName = name;
+      fixedRoomsContainer.appendChild(item);
+    });
+  }
+
+  function addCustomRoomRow(name = '', imageUrl = '') {
+    const item = makeRoomItem(name, { removable: true });
+    item.dataset.imageUrl = imageUrl || '';
+    if (imageUrl) {
+      item.preview.innerHTML = `<img src="${imageUrl}" style="max-width:120px; border-radius:6px;">`;
+    }
+    customRoomsContainer.appendChild(item);
+  }
+
+  addCustomRoomBtn.addEventListener('click', () => addCustomRoomRow());
+  renderFixedRooms();
+
+  function resetRooms() {
+    renderFixedRooms();
+    customRoomsContainer.innerHTML = '';
+  }
+
+  // --- Tische (seat selection): each row is a free-text table name plus a
+  // required capacity (seats). A stable, client-generated id (not the name)
+  // is what registrations.table_id actually stores, so renaming a table
+  // later doesn't orphan existing registrations.
+
+  function makeTableItem(table = {}) {
+    const item = document.createElement('div');
+    item.className = 'table-item';
+    item.dataset.tableId = table.id || (crypto.randomUUID ? crypto.randomUUID() : `t${Date.now()}${Math.random().toString(36).slice(2, 8)}`);
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:8px;';
+
+    const nameEl = document.createElement('input');
+    nameEl.type = 'text';
+    nameEl.placeholder = 'Tisch-Name (z. B. Tisch 1)';
+    nameEl.className = 'table-name-input';
+    nameEl.value = table.name || '';
+    nameEl.style.cssText = 'flex:2; margin:0;';
+
+    const capacityEl = document.createElement('input');
+    capacityEl.type = 'number';
+    capacityEl.min = '1';
+    capacityEl.placeholder = 'Plätze';
+    capacityEl.className = 'table-capacity-input';
+    capacityEl.value = table.capacity ?? '';
+    capacityEl.style.cssText = 'flex:1; margin:0;';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'button secondary';
+    removeBtn.textContent = '×';
+    removeBtn.style.cssText = 'padding:2px 10px;';
+    removeBtn.addEventListener('click', () => item.remove());
+
+    row.appendChild(nameEl);
+    row.appendChild(capacityEl);
+    row.appendChild(removeBtn);
+    item.appendChild(row);
+    item.nameInput = nameEl;
+    item.capacityInput = capacityEl;
+
+    return item;
+  }
+
+  function addTableRow(table = {}) {
+    tablesListContainer.appendChild(makeTableItem(table));
+  }
+
+  addTableBtn.addEventListener('click', () => addTableRow());
+
+  function resetTables() {
+    tablesListContainer.innerHTML = '';
+  }
+
+  function collectTables() {
+    const tables = [];
+    tablesListContainer.querySelectorAll('.table-item').forEach(item => {
+      const name = item.nameInput.value.trim();
+      const capacity = item.capacityInput.value ? Number(item.capacityInput.value) : null;
+      if (!name || !capacity) return;
+      tables.push({ id: item.dataset.tableId, name, capacity });
+    });
+    return tables;
+  }
+
+  function fillTables(tables) {
+    resetTables();
+    (tables || []).forEach(t => addTableRow(t));
+  }
+
+  // --- Sponsoring-Kategorien: simple checklist (no images), same idea as Räume but lighter.
+
+  function makeSponsorCategoryItem(name, { removable = false } = {}) {
+    const item = document.createElement('div');
+    item.className = 'sponsor-category-item';
+
+    if (removable) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; align-items:center; gap:8px;';
+      const nameEl = document.createElement('input');
+      nameEl.type = 'text';
+      nameEl.placeholder = 'Kategorie';
+      nameEl.className = 'sponsor-category-name-input';
+      nameEl.value = name || '';
+      nameEl.style.cssText = 'flex:1; margin:0;';
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'button secondary';
+      removeBtn.textContent = '×';
+      removeBtn.style.cssText = 'padding:2px 10px;';
+      removeBtn.addEventListener('click', () => item.remove());
+      row.appendChild(nameEl);
+      row.appendChild(removeBtn);
+      item.appendChild(row);
+      item.nameInput = nameEl;
+    } else {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'sponsor-category-checkbox';
+      checkbox.style.width = 'auto';
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex; align-items:center; gap:6px; font-weight:normal; margin:0;';
+      label.appendChild(checkbox);
+      label.append(name);
+      item.appendChild(label);
+      item.checkbox = checkbox;
+      item.dataset.categoryName = name;
+    }
+
+    return item;
+  }
+
+  function renderFixedSponsorCategories() {
+    fixedSponsorCategoriesContainer.innerHTML = '';
+    FIXED_SPONSOR_CATEGORIES.forEach(name => {
+      fixedSponsorCategoriesContainer.appendChild(makeSponsorCategoryItem(name, { removable: false }));
+    });
+  }
+
+  function addCustomSponsorCategoryRow(name = '') {
+    customSponsorCategoriesContainer.appendChild(makeSponsorCategoryItem(name, { removable: true }));
+  }
+
+  addCustomSponsorCategoryBtn.addEventListener('click', () => addCustomSponsorCategoryRow());
+  renderFixedSponsorCategories();
+
+  function resetSponsorCategories() {
+    renderFixedSponsorCategories();
+    customSponsorCategoriesContainer.innerHTML = '';
+  }
+
+  function collectSponsorCategories() {
+    const categories = [];
+    fixedSponsorCategoriesContainer.querySelectorAll('.sponsor-category-item').forEach(item => {
+      if (item.checkbox.checked) categories.push(item.dataset.categoryName);
+    });
+    customSponsorCategoriesContainer.querySelectorAll('.sponsor-category-item').forEach(item => {
+      const name = item.nameInput.value.trim();
+      if (name) categories.push(name);
+    });
+    return categories;
+  }
+
+  function fillSponsorCategories(categories) {
+    resetSponsorCategories();
+    (categories || []).forEach(name => {
+      const fixedItem = [...fixedSponsorCategoriesContainer.querySelectorAll('.sponsor-category-item')].find(i => i.dataset.categoryName === name);
+      if (fixedItem) {
+        fixedItem.checkbox.checked = true;
+      } else {
+        addCustomSponsorCategoryRow(name);
+      }
+    });
+  }
+
+  // --- Vorbestell-Katalog (order_products): free-form list of {name, price}, one row per item,
+  // added/removed on demand like the custom Räume/Sponsoring-Kategorien rows above.
+
+  function makeOrderProductItem(product = {}) {
+    const item = document.createElement('div');
+    item.className = 'order-product-item';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:8px;';
+
+    const nameEl = document.createElement('input');
+    nameEl.type = 'text';
+    nameEl.placeholder = 'Artikel (z. B. Wein)';
+    nameEl.className = 'order-product-name-input';
+    nameEl.value = product.name || '';
+    nameEl.style.cssText = 'flex:2; margin:0;';
+
+    const priceEl = document.createElement('input');
+    priceEl.type = 'number';
+    priceEl.min = '0';
+    priceEl.step = '0.01';
+    priceEl.placeholder = 'Preis €';
+    priceEl.className = 'order-product-price-input';
+    priceEl.value = product.price ?? '';
+    priceEl.style.cssText = 'flex:1; margin:0;';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'button secondary';
+    removeBtn.textContent = '×';
+    removeBtn.style.cssText = 'padding:2px 10px;';
+    removeBtn.addEventListener('click', () => item.remove());
+
+    row.appendChild(nameEl);
+    row.appendChild(priceEl);
+    row.appendChild(removeBtn);
+    item.appendChild(row);
+    item.nameInput = nameEl;
+    item.priceInput = priceEl;
+
+    return item;
+  }
+
+  function addOrderProductRow(product = {}) {
+    orderProductsContainer.appendChild(makeOrderProductItem(product));
+  }
+
+  addOrderProductBtn.addEventListener('click', () => addOrderProductRow());
+
+  function resetOrderProducts() {
+    orderProductsContainer.innerHTML = '';
+  }
+
+  function collectOrderProducts() {
+    const products = [];
+    orderProductsContainer.querySelectorAll('.order-product-item').forEach(item => {
+      const name = item.nameInput.value.trim();
+      if (!name) return;
+      const price = item.priceInput.value ? Number(item.priceInput.value) : null;
+      products.push({ name, price });
+    });
+    return products;
+  }
+
+  function fillOrderProducts(products) {
+    resetOrderProducts();
+    (products || []).forEach(p => addOrderProductRow(p));
+  }
+
+  async function uploadRoomImage(slug, roomName, file) {
+    const ext = file.name.split('.').pop();
+    const path = `${slug}-room-${slugify(roomName) || 'raum'}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('event-images').upload(path, file, { upsert: true });
+    if (error) throw error;
+    const { data } = supabase.storage.from('event-images').getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  async function collectRooms(slug) {
+    const rooms = [];
+
+    for (const item of fixedRoomsContainer.querySelectorAll('.room-item')) {
+      if (!item.checkbox.checked) continue;
+      const name = item.dataset.roomName;
+      const file = item.fileInput.files[0];
+      let imageUrl = item.dataset.imageUrl || null;
+      if (file) imageUrl = await uploadRoomImage(slug, name, file);
+      rooms.push({ name, image_url: imageUrl });
+    }
+
+    for (const item of customRoomsContainer.querySelectorAll('.room-item')) {
+      const name = item.nameInput.value.trim();
+      if (!name) continue;
+      const file = item.fileInput.files[0];
+      let imageUrl = item.dataset.imageUrl || null;
+      if (file) imageUrl = await uploadRoomImage(slug, name, file);
+      rooms.push({ name, image_url: imageUrl });
+    }
+
+    return rooms;
+  }
+
+  function fillRooms(rooms) {
+    resetRooms();
+    (rooms || []).forEach(r => {
+      const fixedItem = [...fixedRoomsContainer.querySelectorAll('.room-item')].find(i => i.dataset.roomName === r.name);
+      if (fixedItem) {
+        fixedItem.checkbox.checked = true;
+        fixedItem.fileInput.style.display = 'block';
+        fixedItem.dataset.imageUrl = r.image_url || '';
+        if (r.image_url) fixedItem.preview.innerHTML = `<img src="${r.image_url}" style="max-width:120px; border-radius:6px;">`;
+      } else {
+        addCustomRoomRow(r.name, r.image_url);
+      }
+    });
+  }
+
+  function resetForm() {
+    form.reset();
+    updateFeeModeUI();
+    document.getElementById('event-id').value = '';
+    imageUrlField.value = '';
+    imagePreview.innerHTML = '';
+    resetRooms();
+    resetTables();
+    resetSponsorCategories();
+    resetOrderProducts();
+    slugTouched = false;
+    formTitle.textContent = 'Neue Veranstaltung';
+    cancelBtn.style.display = 'none';
+  }
+
+  feeModeSelect.addEventListener('change', updateFeeModeUI);
+
+  cancelBtn.addEventListener('click', resetForm);
+
+  async function loadEvents() {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .order('starts_at', { ascending: true, nullsFirst: false });
+
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="7">Fehler: ${error.message}</td></tr>`;
+      return;
+    }
+
+    const now = new Date();
+    tbody.innerHTML = data.map(ev => {
+      const isPast = ev.starts_at && new Date(ev.starts_at) < now;
+      return `
+      <tr class="${isPast ? 'em-row-past' : ''}">
+        <td>${ev.title}</td>
+        <td>${ev.starts_at ? new Date(ev.starts_at).toLocaleString('de-DE') : '—'}${isPast ? ' <span class="em-badge-past">vergangen</span>' : ''}</td>
+        <td><span class="em-badge ${ev.status}">${ev.status}</span></td>
+        <td>${MEAL_LABELS[ev.meal_type] ?? '—'}</td>
+        <td>${(ev.rooms && ev.rooms.length) ? ev.rooms.map(r => r.name).join(', ') : '—'}</td>
+        <td><a href="../../events/event.html?event=${ev.slug}" target="_blank">${ev.slug}</a>${ev.requires_code ? ' <span title="Nur mit Einladungscode zugänglich">🔒</span>' : ''}</td>
+        <td>
+          <div class="row-actions">
+            <a class="button secondary small" href="participants.html?event=${ev.slug}">Teilnehmer</a>
+            <a class="button secondary small" href="invitations.html?event=${ev.slug}">Einladungen</a>
+            <a class="button secondary small" href="sponsors.html?event=${ev.slug}">Sponsoren</a>
+            <a class="button secondary small" href="statistics.html?event=${ev.slug}">Statistik</a>
+            <button type="button" class="button secondary small" data-edit="${ev.id}">Bearbeiten</button>
+            <button type="button" class="button secondary small" data-delete="${ev.id}" style="color:#cc0000; border-color:#cc0000;">Löschen</button>
+          </div>
+        </td>
+      </tr>
+    `;
+    }).join('') || '<tr><td colspan="7">Noch keine Veranstaltungen.</td></tr>';
+
+    tbody.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.addEventListener('click', () => editEvent(data.find(e => e.id === btn.dataset.edit)));
+    });
+
+    tbody.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', () => deleteEvent(btn.dataset.delete, data.find(e => e.id === btn.dataset.delete)));
+    });
+  }
+
+  async function deleteEvent(id, ev) {
+    const label = ev ? ev.title : 'diese Veranstaltung';
+    if (!confirm(`"${label}" wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) return;
+
+    const { error } = await supabase.from('events').delete().eq('id', id);
+    if (error) {
+      alert('Fehler beim Löschen: ' + error.message);
+      return;
+    }
+    loadEvents();
+  }
+
+  function editEvent(ev) {
+    document.getElementById('event-id').value = ev.id;
+    titleInput.value = ev.title;
+    slugInput.value = ev.slug;
+    slugTouched = true; // don't let further title edits overwrite an existing event's link
+    descriptionInput.value = ev.description || '';
+    document.getElementById('starts_at').value = isoToLocalInput(ev.starts_at);
+    document.getElementById('location').value = ev.location || '';
+    document.getElementById('capacity').value = ev.capacity || '';
+    document.getElementById('registration-deadline').value = isoToLocalInput(ev.registration_deadline);
+    document.getElementById('status').value = ev.status;
+    mealTypeSelect.value = ev.meal_type || 'none';
+    nonMemberFeeInput.value = ev.non_member_fee ?? '';
+    feeModeSelect.value = ev.fee_mode || 'family';
+    feeAmountChildInput.value = ev.fee_amount_child ?? '';
+    updateFeeModeUI();
+    imageUrlField.value = ev.image_url || '';
+    imagePreview.innerHTML = ev.image_url ? `<img src="${ev.image_url}" style="max-width:200px; border-radius:6px;">` : '';
+    fillRooms(ev.rooms || []);
+    requiresCodeInput.checked = !!ev.requires_code;
+    hasKindertischInput.checked = !!ev.has_kindertisch;
+    hasSeatingInput.checked = !!ev.has_seating;
+    fillTables(ev.tables || []);
+    fillSponsorCategories(ev.sponsor_categories || []);
+    fillOrderProducts(ev.order_products || []);
+    formTitle.textContent = 'Veranstaltung bearbeiten';
+    cancelBtn.style.display = 'inline-block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function uploadImageIfAny(slug) {
+    const file = imageInput.files[0];
+    if (!file) return imageUrlField.value || null;
+
+    const ext = file.name.split('.').pop();
+    const path = `${slug}-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from('event-images').upload(path, file, { upsert: true });
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from('event-images').getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    formError.style.display = 'none';
+    slugInput.value = slugify(slugInput.value);
+
+    const id = document.getElementById('event-id').value;
+
+    if (!slugInput.value) {
+      formError.textContent = 'Bitte einen Titel eingeben, aus dem ein Link erzeugt werden kann.';
+      formError.style.display = 'block';
+      return;
+    }
+
+    let imageUrl;
+    let rooms;
+    try {
+      imageUrl = await uploadImageIfAny(slugInput.value);
+      rooms = await collectRooms(slugInput.value);
+    } catch (uploadError) {
+      formError.textContent = 'Fehler beim Bild-Upload: ' + uploadError.message;
+      formError.style.display = 'block';
+      return;
+    }
+
+    const payload = {
+      title: titleInput.value.trim(),
+      slug: slugInput.value,
+      description: descriptionInput.value.trim() || null,
+      starts_at: localInputToISO(document.getElementById('starts_at').value),
+      location: document.getElementById('location').value.trim() || null,
+      capacity: document.getElementById('capacity').value ? Number(document.getElementById('capacity').value) : null,
+      registration_deadline: localInputToISO(document.getElementById('registration-deadline').value),
+      status: document.getElementById('status').value,
+      meal_type: mealTypeSelect.value,
+      non_member_fee: nonMemberFeeInput.value ? Number(nonMemberFeeInput.value) : null,
+      fee_mode: feeModeSelect.value,
+      fee_amount_child: feeAmountChildInput.value ? Number(feeAmountChildInput.value) : null,
+      image_url: imageUrl,
+      rooms,
+      requires_code: requiresCodeInput.checked,
+      has_kindertisch: hasKindertischInput.checked,
+      has_seating: hasSeatingInput.checked,
+      tables: collectTables(),
+      sponsor_categories: collectSponsorCategories(),
+      order_products: collectOrderProducts(),
+      updated_at: new Date().toISOString(),
+    };
+
+    let error;
+    if (id) {
+      ({ error } = await supabase.from('events').update(payload).eq('id', id));
+    } else {
+      const { data: { user } } = await supabase.auth.getUser();
+      payload.created_by = user.id;
+      ({ error } = await supabase.from('events').insert(payload));
+    }
+
+    if (error) {
+      formError.textContent = 'Fehler: ' + error.message;
+      formError.style.display = 'block';
+      return;
+    }
+
+    resetForm();
+    loadEvents();
+  });
+
+  updateFeeModeUI();
+  loadEvents();
+</script>
+
+</body>
+</html>

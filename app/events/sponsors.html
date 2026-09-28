@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sponsoren – Event Manager</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../events/events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>Event Manager</h1>
+  <nav>
+    <a href="events.html">Veranstaltungen</a>
+    <a href="members.html">Mitglieder</a>
+    <a href="#" id="logout-link">Abmelden</a>
+  </nav>
+</header>
+
+<section class="em-container">
+  <div id="sponsors-area"><p>Lädt…</p></div>
+</section>
+
+<footer>© 2026 Familienschabbat-Team</footer>
+
+<script type="module">
+  import { supabase } from '../../shared/supabase-client.js';
+  import { requireAuth, logout } from '../../shared/require-auth.js';
+
+  await requireAuth('../login.html');
+
+  document.getElementById('logout-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    logout('../login.html');
+  });
+
+  const STATUS_LABELS = { offered: 'Angeboten', confirmed: 'Bestätigt', declined: 'Abgelehnt' };
+
+  const area = document.getElementById('sponsors-area');
+  const slug = new URLSearchParams(window.location.search).get('event');
+
+  if (!slug) {
+    area.innerHTML = '<p>Keine Veranstaltung angegeben. <a href="events.html">Zurück zur Übersicht</a>.</p>';
+  } else {
+    await loadSponsors();
+  }
+
+  async function loadSponsors() {
+    const { data: ev, error: evError } = await supabase
+      .from('events')
+      .select('id, slug, title, sponsor_categories')
+      .eq('slug', slug)
+      .single();
+
+    if (evError || !ev) {
+      area.innerHTML = '<p>Veranstaltung nicht gefunden. <a href="events.html">Zurück zur Übersicht</a>.</p>';
+      return;
+    }
+
+    const { data: rows, error } = await supabase
+      .from('sponsorships')
+      .select('*')
+      .eq('event_id', ev.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      area.innerHTML = `<p>Fehler: ${error.message}</p>`;
+      return;
+    }
+
+    const sponsorLink = new URL('../../events/sponsor.html', window.location.href).href + `?event=${ev.slug}`;
+    const hasCategories = ev.sponsor_categories && ev.sponsor_categories.length;
+
+    area.innerHTML = `
+      <div class="em-card">
+        <p><a href="events.html">← Zurück zur Übersicht</a></p>
+        <h2>Sponsoren: ${ev.title}</h2>
+        ${hasCategories
+          ? `<p>Sponsoring-Link zum Teilen: <a href="${sponsorLink}" target="_blank">${sponsorLink}</a></p>`
+          : '<p style="color:#996600;">Für diese Veranstaltung sind noch keine Sponsoring-Kategorien eingetragen. Füge welche beim Bearbeiten der Veranstaltung hinzu, damit die Sponsoring-Seite etwas anzuzeigen hat.</p>'}
+      </div>
+      <div class="em-card">
+        <div class="em-table-wrap">
+        <table class="em-table" id="sponsors-table">
+          <thead>
+            <tr><th>Name</th><th>Kategorie</th><th>E-Mail</th><th>Telefon</th><th>Notiz</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        </div>
+      </div>
+    `;
+
+    const tbody = document.querySelector('#sponsors-table tbody');
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${r.sponsor_name}</td>
+        <td>${r.category}</td>
+        <td>${r.email || '—'}</td>
+        <td>${r.phone || '—'}</td>
+        <td>${r.notes || '—'}</td>
+        <td>
+          <select class="status-select" data-id="${r.id}">
+            <option value="offered" ${r.status === 'offered' ? 'selected' : ''}>${STATUS_LABELS.offered}</option>
+            <option value="confirmed" ${r.status === 'confirmed' ? 'selected' : ''}>${STATUS_LABELS.confirmed}</option>
+            <option value="declined" ${r.status === 'declined' ? 'selected' : ''}>${STATUS_LABELS.declined}</option>
+          </select>
+        </td>
+        <td><button type="button" class="button secondary small" data-delete="${r.id}" style="color:#cc0000; border-color:#cc0000;">Löschen</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="7">Noch keine Sponsoring-Angebote.</td></tr>';
+
+    tbody.querySelectorAll('.status-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        const { error: updError } = await supabase.from('sponsorships').update({ status: sel.value }).eq('id', sel.dataset.id);
+        if (updError) alert('Fehler: ' + updError.message);
+      });
+    });
+
+    tbody.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Dieses Sponsoring-Angebot wirklich löschen?')) return;
+        const { error: delError } = await supabase.from('sponsorships').delete().eq('id', btn.dataset.delete);
+        if (delError) {
+          alert('Fehler beim Löschen: ' + delError.message);
+          return;
+        }
+        loadSponsors();
+      });
+    });
+  }
+</script>
+
+</body>
+</html>

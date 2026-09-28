@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sponsoring – Iryna Levynska</title>
+  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>IRGW &middot; Veranstaltungen</h1>
+</header>
+
+<section class="em-container">
+  <div id="sponsor-area"><p>Lädt…</p></div>
+</section>
+
+<footer>© 2026 Familienschabbat-Team · <a href="../datenschutz.html">Datenschutz</a></footer>
+
+<script type="module">
+  import { supabase } from '../shared/supabase-client.js';
+
+  const area = document.getElementById('sponsor-area');
+  const slug = new URLSearchParams(window.location.search).get('event');
+
+  if (!slug) {
+    area.innerHTML = '<p>Veranstaltung nicht angegeben.</p>';
+  } else {
+    const { data: ev, error } = await supabase
+      .from('events')
+      .select('id, slug, title, starts_at, location, sponsor_categories')
+      .eq('slug', slug)
+      .eq('status', 'published')
+      .single();
+
+    if (error || !ev) {
+      area.innerHTML = '<p>Veranstaltung nicht gefunden.</p>';
+    } else if (!ev.sponsor_categories || !ev.sponsor_categories.length) {
+      area.innerHTML = `<div class="em-card"><h2>${ev.title}</h2><p>Für diese Veranstaltung werden aktuell keine Sponsoren gesucht.</p></div>`;
+    } else {
+      renderForm(ev);
+    }
+  }
+
+  function renderForm(ev) {
+    area.innerHTML = `
+      <div class="em-card">
+        <h2>Sponsor werden: ${ev.title}</h2>
+        <p>${ev.starts_at ? new Date(ev.starts_at).toLocaleString('de-DE') : ''} ${ev.location ? '· ' + ev.location : ''}</p>
+        <p>Du möchtest diese Veranstaltung unterstützen? Wähle aus, was du übernehmen möchtest.</p>
+
+        <form id="sponsor-form" class="em-form">
+          <label for="category">Was möchtest du sponsern?</label>
+          <select id="category" required>
+            ${ev.sponsor_categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+          </select>
+
+          <label for="sponsor_name">Name</label>
+          <input type="text" id="sponsor_name" required>
+
+          <label for="email">E-Mail (optional)</label>
+          <input type="email" id="email">
+
+          <label for="phone">Telefon (optional)</label>
+          <input type="tel" id="phone">
+
+          <label for="notes">Anmerkungen (optional)</label>
+          <textarea id="notes" rows="3"></textarea>
+
+          <p id="form-error" style="color:#cc0000; display:none;"></p>
+
+          <button type="submit" class="button" style="margin-top:16px;">Angebot senden</button>
+        </form>
+      </div>
+    `;
+
+    const form = document.getElementById('sponsor-form');
+    const formError = document.getElementById('form-error');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formError.style.display = 'none';
+
+      const payload = {
+        event_id: ev.id,
+        category: document.getElementById('category').value,
+        sponsor_name: document.getElementById('sponsor_name').value.trim(),
+        email: document.getElementById('email').value.trim() || null,
+        phone: document.getElementById('phone').value.trim() || null,
+        notes: document.getElementById('notes').value.trim() || null,
+      };
+
+      const { error } = await supabase.from('sponsorships').insert(payload);
+
+      if (error) {
+        formError.textContent = 'Fehler: ' + error.message;
+        formError.style.display = 'block';
+        return;
+      }
+
+      area.innerHTML = `
+        <div class="em-card">
+          <h2>Vielen Dank!</h2>
+          <p>Dein Sponsoring-Angebot für "${ev.title}" (${payload.category}) wurde übermittelt. Iryna meldet sich bei dir.</p>
+          <a class="button" href="event.html?event=${ev.slug}">Zurück zur Veranstaltung</a>
+        </div>
+      `;
+    });
+  }
+</script>
+
+</body>
+</html>

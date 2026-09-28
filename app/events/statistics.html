@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statistik – Event Manager</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../events/events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>Event Manager</h1>
+  <nav>
+    <a href="events.html">Veranstaltungen</a>
+    <a href="members.html">Mitglieder</a>
+    <a href="#" id="logout-link">Abmelden</a>
+  </nav>
+</header>
+
+<section class="em-container">
+  <div id="stats-area"><p>Lädt…</p></div>
+</section>
+
+<footer>© 2026 Familienschabbat-Team</footer>
+
+<script type="module">
+  import { supabase } from '../../shared/supabase-client.js';
+  import { requireAuth, logout } from '../../shared/require-auth.js';
+
+  await requireAuth('../login.html');
+
+  document.getElementById('logout-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    logout('../login.html');
+  });
+
+  const area = document.getElementById('stats-area');
+  const slug = new URLSearchParams(window.location.search).get('event');
+
+  if (slug) {
+    await renderEventStats(slug);
+  } else {
+    await renderOverview();
+  }
+
+  // Overview: every event side by side, so registration counts across dates
+  // (e.g. the three Familienschabbat dates) can be compared at a glance.
+  async function renderOverview() {
+    const { data: events, error: evError } = await supabase
+      .from('events')
+      .select('*')
+      .order('starts_at', { ascending: true, nullsFirst: false });
+
+    if (evError) {
+      area.innerHTML = `<p>Fehler: ${evError.message}</p>`;
+      return;
+    }
+
+    const { data: regs, error: regError } = await supabase
+      .from('registrations')
+      .select('event_id, guests_count, status');
+
+    if (regError) {
+      area.innerHTML = `<p>Fehler: ${regError.message}</p>`;
+      return;
+    }
+
+    const byEvent = regs.reduce((acc, r) => {
+      (acc[r.event_id] ??= []).push(r);
+      return acc;
+    }, {});
+
+    const now = new Date();
+    const rows = events.map(ev => {
+      const evRegs = byEvent[ev.id] || [];
+      const confirmed = evRegs.filter(r => r.status === 'confirmed');
+      const totalGuests = confirmed.reduce((sum, r) => sum + (r.guests_count || 0), 0);
+      const capacityText = ev.capacity ? `${totalGuests} / ${ev.capacity}` : `${totalGuests} (kein Limit)`;
+      const isPast = ev.starts_at && new Date(ev.starts_at) < now;
+      return `
+        <tr class="${isPast ? 'em-row-past' : ''}">
+          <td><a href="statistics.html?event=${ev.slug}">${ev.title}</a></td>
+          <td>${ev.starts_at ? new Date(ev.starts_at).toLocaleString('de-DE') : '—'}${isPast ? ' <span class="em-badge-past">vergangen</span>' : ''}</td>
+          <td><span class="em-badge ${ev.status}">${ev.status}</span></td>
+          <td>${capacityText}</td>
+          <td>${evRegs.length}</td>
+        </tr>
+      `;
+    }).join('') || '<tr><td colspan="6">Noch keine Veranstaltungen.</td></tr>';
+
+    area.innerHTML = `
+      <div class="em-card">
+        <h2>Statistik — alle Veranstaltungen</h2>
+        <p style="color:var(--color-text-muted); font-size:0.9em;">Zum Vergleich über mehrere Termine derselben Reihe (z. B. die drei Familienschabbat-Termine). Auf einen Titel klicken für Details zu diesem Termin.</p>
+      </div>
+      <div class="em-card">
+        <div class="em-table-wrap">
+        <table class="em-table">
+          <thead>
+            <tr><th>Titel</th><th>Beginn</th><th>Status</th><th>Bestätigt (Gäste)</th><th>Anmeldungen gesamt</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // Per-event detail: the same headline numbers as "Teilnehmer", plus a simple
+  // day-by-day registration count to see the pace of sign-ups over time.
+  async function renderEventStats(slug) {
+    const { data: ev, error: evError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('slug', slug)
+      .single();
+
+    if (evError || !ev) {
+      area.innerHTML = '<p>Veranstaltung nicht gefunden. <a href="statistics.html">Zurück zur Übersicht</a>.</p>';
+      return;
+    }
+
+    const { data: regs, error: regError } = await supabase
+      .from('registrations')
+      .select('*')
+      .eq('event_id', ev.id)
+      .order('created_at', { ascending: true });
+
+    if (regError) {
+      area.innerHTML = `<p>Fehler: ${regError.message}</p>`;
+      return;
+    }
+
+    const regIds = regs.map(r => r.id);
+    let childrenByReg = {};
+    if (regIds.length) {
+      const { data: children, error: childError } = await supabase
+        .from('registration_children')
+        .select('*')
+        .in('registration_id', regIds);
+      if (!childError) {
+        childrenByReg = children.reduce((acc, c) => {
+          (acc[c.registration_id] ??= []).push(c);
+          return acc;
+        }, {});
+      }
+    }
+
+    const confirmed = regs.filter(r => r.status === 'confirmed');
+    const cancelled = regs.filter(r => r.status === 'cancelled');
+    const totalGuests = confirmed.reduce((sum, r) => sum + (r.guests_count || 0), 0);
+    const capacityText = ev.capacity ? `${totalGuests} / ${ev.capacity}` : `${totalGuests} (kein Limit)`;
+    const capacityPct = ev.capacity ? Math.min(100, Math.round((totalGuests / ev.capacity) * 100)) : null;
+
+    const confirmedChildren = confirmed.flatMap(r => childrenByReg[r.id] || []);
+    const kindertischCount = confirmedChildren.filter(c => c.at_kindertisch).length;
+    const withParentsCount = confirmedChildren.filter(c => !c.at_kindertisch).length;
+    const highChairCount = confirmedChildren.filter(c => c.needs_high_chair).length;
+
+    // Age bands for planning the two Kinderbetreuung rooms (requested
+    // 28.09.2026): unter 6 Jahre in einem Raum, 6-15 Jahre im anderen. Age is
+    // computed as of the event's date (same helper as in register.html), not
+    // typed in, so it never goes stale.
+    function ageFromBirthDate(birthDateStr, referenceDateStr) {
+      if (!birthDateStr) return null;
+      const birth = new Date(birthDateStr);
+      const reference = referenceDateStr ? new Date(referenceDateStr) : new Date();
+      let age = reference.getFullYear() - birth.getFullYear();
+      const hadBirthdayYet = (reference.getMonth() > birth.getMonth())
+        || (reference.getMonth() === birth.getMonth() && reference.getDate() >= birth.getDate());
+      if (!hadBirthdayYet) age -= 1;
+      return age;
+    }
+    const childrenAges = confirmedChildren.map(c => ageFromBirthDate(c.birth_date, ev.starts_at));
+    const under6Count = childrenAges.filter(a => a !== null && a < 6).length;
+    const age6to15Count = childrenAges.filter(a => a !== null && a >= 6 && a <= 15).length;
+    const over15Count = childrenAges.filter(a => a !== null && a > 15).length;
+    const ageUnknownCount = childrenAges.filter(a => a === null).length;
+
+    // Registrations grouped by calendar day (local time), with a running total,
+    // to show how registration pace developed over time.
+    const byDay = confirmed.reduce((acc, r) => {
+      const day = new Date(r.created_at).toLocaleDateString('de-DE');
+      acc[day] = (acc[day] || 0) + 1;
+      return acc;
+    }, {});
+    let running = 0;
+    const dayRows = Object.entries(byDay).map(([day, count]) => {
+      running += count;
+      return `<tr><td>${day}</td><td>${count}</td><td>${running}</td></tr>`;
+    }).join('') || '<tr><td colspan="3">Noch keine Anmeldungen.</td></tr>';
+
+    area.innerHTML = `
+      <div class="em-card">
+        <p><a href="statistics.html">← Zurück zur Übersicht</a> · <a href="participants.html?event=${ev.slug}">Teilnehmer ansehen</a></p>
+        <h2>Statistik: ${ev.title}</h2>
+        <p><strong>Bestätigt:</strong> ${capacityText} · <strong>Storniert:</strong> ${cancelled.length} · <strong>Anmeldungen gesamt:</strong> ${regs.length} · <strong>Insgesamt angemeldete Personen:</strong> ${totalGuests}</p>
+        ${capacityPct !== null ? `
+        <div style="background:var(--color-bg-card-alt); border-radius:6px; height:10px; overflow:hidden; margin:6px 0 14px;">
+          <div style="width:${capacityPct}%; background:${capacityPct >= 100 ? '#b0554f' : capacityPct >= 80 ? '#c9a227' : '#6f8f5f'}; height:100%;"></div>
+        </div>
+        ` : ''}
+        ${ev.has_kindertisch ? `<p><strong>Kindertisch:</strong> ${kindertischCount} Kinder am Kindertisch · ${withParentsCount} bei den Eltern${highChairCount ? ` · ${highChairCount} mit Kindersitz` : ''}</p>` : ''}
+      </div>
+      ${confirmedChildren.length ? `
+      <div class="em-card">
+        <h3>Kinder — Details</h3>
+        <p style="color:var(--color-text-muted); font-size:0.9em;">Für die Planung der Kinderbetreuung-Räume und die Essensbestellung.</p>
+        <div class="em-table-wrap">
+        <table class="em-table">
+          <tbody>
+            <tr><td>Unter 6 Jahre (Raum 1)</td><td>${under6Count}</td></tr>
+            <tr><td>6–15 Jahre (Raum 2)</td><td>${age6to15Count}</td></tr>
+            ${over15Count ? `<tr><td>Über 15 Jahre</td><td>${over15Count}</td></tr>` : ''}
+            ${ageUnknownCount ? `<tr><td>Ohne Geburtsdatum angegeben</td><td>${ageUnknownCount}</td></tr>` : ''}
+            <tr><td>Am Kindertisch (für Essensbestellung)</td><td>${kindertischCount}</td></tr>
+            <tr><td>Bei den Eltern am normalen Tisch</td><td>${withParentsCount}</td></tr>
+            <tr><td>Kindersitz / Hochstuhl benötigt</td><td>${highChairCount}</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+      ` : ''}
+      <div class="em-card">
+        <h3>Anmeldungen pro Tag</h3>
+        <div class="em-table-wrap">
+        <table class="em-table">
+          <thead><tr><th>Tag</th><th>Anmeldungen</th><th>Gesamt (kumuliert)</th></tr></thead>
+          <tbody>${dayRows}</tbody>
+        </table>
+        </div>
+      </div>
+    `;
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Geprüfte Mitglieder – Event Manager</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../events/events.css">
+</head>
+<body class="em-public-theme">
+
+<header>
+  <h1>Event Manager</h1>
+  <nav>
+    <a href="events.html">Veranstaltungen</a>
+    <a href="members.html">Mitglieder</a>
+    <a href="#" id="logout-link">Abmelden</a>
+  </nav>
+</header>
+
+<section class="em-container">
+
+  <div class="em-card">
+    <p style="margin-top:0; font-size:0.9em; color:#555;">
+      Liste der Personen, deren Gemeindemitgliedschaft du selbst geprüft hast (z. B. Rückfrage beim
+      Mitgliederbüro). Unabhängig von der Selbstauskunft im Anmeldeformular — einmal hier eingetragen,
+      wird die Person bei jeder Veranstaltung in der Teilnehmerliste automatisch als „geprüft“ markiert
+      (Abgleich per E-Mail).
+    </p>
+    <h2 id="form-title">Person hinzufügen</h2>
+    <form id="member-form" class="em-form">
+      <input type="hidden" id="member-id">
+
+      <label for="full_name">Name</label>
+      <input type="text" id="full_name" required>
+
+      <label for="email">E-Mail</label>
+      <input type="email" id="email" required>
+
+      <label for="phone">Telefon (optional)</label>
+      <input type="text" id="phone">
+
+      <label for="birth_date">Geburtsdatum (optional)</label>
+      <input type="date" id="birth_date">
+
+      <label for="address">Adresse (optional)</label>
+      <input type="text" id="address" placeholder="Straße, PLZ Ort">
+
+      <label for="notes">Notiz (optional, z. B. wie/wann geprüft)</label>
+      <textarea id="notes" rows="2"></textarea>
+
+      <p id="form-error" style="color:#cc0000; display:none;"></p>
+
+      <button type="submit" class="button" style="margin-top:16px;">Speichern</button>
+      <button type="button" id="cancel-edit" class="button secondary" style="display:none; margin-top:16px;">Abbrechen</button>
+    </form>
+  </div>
+
+  <div class="em-card">
+    <h2>Geprüfte Mitglieder</h2>
+    <div class="em-table-wrap">
+    <table class="em-table" id="members-table">
+      <thead>
+        <tr><th>Name</th><th>E-Mail</th><th>Telefon</th><th>Geburtsdatum</th><th>Adresse</th><th>Geprüft am</th><th>Notiz</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+
+</section>
+
+<footer>© 2026 Familienschabbat-Team</footer>
+
+<script type="module">
+  import { supabase } from '../../shared/supabase-client.js';
+  import { requireAuth, logout } from '../../shared/require-auth.js';
+
+  await requireAuth('../login.html');
+
+  document.getElementById('logout-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    logout('../login.html');
+  });
+
+  const form = document.getElementById('member-form');
+  const formError = document.getElementById('form-error');
+  const cancelBtn = document.getElementById('cancel-edit');
+  const formTitle = document.getElementById('form-title');
+  const tbody = document.querySelector('#members-table tbody');
+  const fullNameInput = document.getElementById('full_name');
+  const emailInput = document.getElementById('email');
+  const phoneInput = document.getElementById('phone');
+  const birthDateInput = document.getElementById('birth_date');
+  const addressInput = document.getElementById('address');
+  const notesInput = document.getElementById('notes');
+
+  function resetForm() {
+    form.reset();
+    document.getElementById('member-id').value = '';
+    formTitle.textContent = 'Person hinzufügen';
+    cancelBtn.style.display = 'none';
+    formError.style.display = 'none';
+  }
+
+  cancelBtn.addEventListener('click', resetForm);
+
+  async function loadMembers() {
+    const { data, error } = await supabase
+      .from('verified_members')
+      .select('*')
+      .order('verified_at', { ascending: false });
+
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="8">Fehler: ${error.message}</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = data.map(m => `
+      <tr>
+        <td>${m.full_name}</td>
+        <td>${m.email}</td>
+        <td>${m.phone || '—'}</td>
+        <td>${m.birth_date ? new Date(m.birth_date).toLocaleDateString('de-DE') : '—'}</td>
+        <td>${m.address || '—'}</td>
+        <td>${m.verified_at ? new Date(m.verified_at).toLocaleDateString('de-DE') : '—'}</td>
+        <td>${m.notes || '—'}</td>
+        <td>
+          <div class="row-actions">
+            <button type="button" class="button secondary small" data-edit="${m.id}">Bearbeiten</button>
+            <button type="button" class="button secondary small" data-delete="${m.id}" style="color:#cc0000; border-color:#cc0000;">Löschen</button>
+          </div>
+        </td>
+      </tr>
+    `).join('') || '<tr><td colspan="8">Noch keine geprüften Mitglieder.</td></tr>';
+
+    tbody.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.addEventListener('click', () => editMember(data.find(m => m.id === btn.dataset.edit)));
+    });
+
+    tbody.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', () => deleteMember(btn.dataset.delete));
+    });
+  }
+
+  function editMember(m) {
+    document.getElementById('member-id').value = m.id;
+    fullNameInput.value = m.full_name;
+    emailInput.value = m.email;
+    phoneInput.value = m.phone || '';
+    birthDateInput.value = m.birth_date || '';
+    addressInput.value = m.address || '';
+    notesInput.value = m.notes || '';
+    formTitle.textContent = 'Person bearbeiten';
+    cancelBtn.style.display = 'inline-block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteMember(id) {
+    if (!confirm('Diesen Eintrag wirklich löschen?')) return;
+    const { error } = await supabase.from('verified_members').delete().eq('id', id);
+    if (error) {
+      alert('Fehler beim Löschen: ' + error.message);
+      return;
+    }
+    loadMembers();
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    formError.style.display = 'none';
+
+    const id = document.getElementById('member-id').value;
+    const payload = {
+      full_name: fullNameInput.value.trim(),
+      email: emailInput.value.trim().toLowerCase(),
+      phone: phoneInput.value.trim() || null,
+      birth_date: birthDateInput.value || null,
+      address: addressInput.value.trim() || null,
+      notes: notesInput.value.trim() || null,
+    };
+
+    let error;
+    if (id) {
+      ({ error } = await supabase.from('verified_members').update(payload).eq('id', id));
+    } else {
+      const { data: { user } } = await supabase.auth.getUser();
+      payload.verified_by = user.id;
+      ({ error } = await supabase.from('verified_members').insert(payload));
+    }
+
+    if (error) {
+      formError.textContent = 'Fehler: ' + error.message;
+      formError.style.display = 'block';
+      return;
+    }
+
+    resetForm();
+    loadMembers();
+  });
+
+  loadMembers();
+</script>
+
+</body>
+</html>

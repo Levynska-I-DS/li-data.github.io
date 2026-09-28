@@ -1,253 +1,552 @@
 /* =====================================================
-   Общие стили для всей страницы
+   Design tokens — flat editorial style (steel-blue + wine),
+   final approved direction from the design preview review.
+   Redesign 25.09.2026 (v2) — replaces the warm-terracotta
+   redesign from earlier the same day, which never actually
+   matched what was approved in the mockups. Swap these
+   values to re-theme the whole site (style.css + events/
+   events.css both read from these tokens).
    ===================================================== */
-body {
-  margin: 0; /* убираем отступы браузера */
-  padding-top: 80px; /* делаем отступ сверху под фиксированный header */
-  font-family: Arial, sans-serif; /* шрифт для всей страницы */
-  background-color: #cce7ff; /* светлый голубой фон */
-  color: #003366; /* цвет текста */
-  scroll-behavior: smooth; /* плавная прокрутка при переходе по якорям */
-}
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,500&family=Inter:wght@400;500;600;700&display=swap');
 
-/* Ссылки на всей странице */
-a {
-  text-decoration: none; /* убираем подчёркивание */
-  transition: color 0.3s; /* плавное изменение цвета при hover */
+:root {
+  --color-bg: #faf6ef;
+  --color-bg-section: #fffdf9;
+  --color-bg-card-alt: #f3e9db;
+  --color-border: #e4d5bf;
+  --color-text: #2a2420;
+  --color-text-muted: #6b5d4c;
+
+  --color-ink: #16283a;           /* deep ink-blue — header, footer, hero */
+  --color-ink-2: #1f3a52;
+  --color-on-ink: #f5f1e9;
+  --color-on-ink-muted: rgba(245, 241, 233, 0.72);
+  --color-on-ink-accent: #9fc4dd;
+
+  --color-accent: #33607d;        /* steel blue — links, buttons on light bg */
+  --color-accent-hover: #244a61;
+  --color-accent-soft: rgba(51, 96, 125, 0.12);
+
+  --color-accent-2: #7d3f4f;      /* wine — sparing secondary accent */
+  --color-accent-2-hover: #63313e;
+
+  --color-header-bg: var(--color-ink); /* events.css reads this for its own header/footer */
+
+  --font-main: 'Inter', 'Segoe UI', Arial, sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
 }
 
 /* =====================================================
-   Header / Навигация
+   Base page
+   ===================================================== */
+body {
+  margin: 0;
+  padding-top: 64px;
+  font-family: var(--font-main);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  scroll-behavior: smooth;
+}
+
+a {
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+/* =====================================================
+   Header — solid ink bar, consistent on every page
    ===================================================== */
 header {
-  position: fixed; /* закрепляем шапку сверху */
+  position: fixed;
   top: 0;
-  width: 100%; /* занимает всю ширину */
-  background-color: #99ccff; /* голубой фон */
-  padding: 15px 20px; /* внутренние отступы */
-  display: flex; /* используем flex для выравнивания элементов */
-  justify-content: space-between; /* логотип слева, меню справа */
-  align-items: center; /* вертикальное выравнивание */
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* лёгкая тень */
-  z-index: 1000; /* поверх всего контента */
-  box-sizing: border-box; /* учитываем padding в ширине */
+  width: 100%;
+  height: 64px;
+  background-color: var(--color-ink);
+  padding: 0 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1000;
+  box-sizing: border-box;
 }
 
-/* Название / логотип в header */
 header h1 {
   margin: 0;
-  font-size: 24px;
+  font-family: var(--font-main);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-on-ink);
 }
 
-/* Ссылки навигации */
 header nav a {
-  margin-left: 20px; /* расстояние между ссылками */
-  color: #003366;
-  font-weight: bold;
+  margin-left: 26px;
+  color: var(--color-on-ink-muted);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 header nav a:hover {
-  color: #ff6600; /* цвет при наведении */
+  color: var(--color-on-ink);
 }
 
 /* =====================================================
-   Общие стили для всех секций (Projekte, Zertifikate, Kontakt)
+   Generic content sections — flat, no card box, no
+   shadow; a thin rule separates sections instead.
    ===================================================== */
 section {
-  width: 90%; /* занимает 90% ширины экрана */
-  max-width: 900px; /* максимальная ширина на больших экранах */
-  margin: 40px auto; /* отступ сверху/снизу и центрирование */
-  padding: 30px; /* внутренние отступы */
-  background-color: #e6f2ff; /* светло-голубой фон */
-  border-radius: 12px; /* скругление углов */
-  box-sizing: border-box; /* учитываем padding */
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 64px 24px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--color-border);
+}
+
+section:last-of-type {
+  border-bottom: none;
+}
+
+.eyebrow-label {
+  display: block;
+  margin: 0 0 10px;
+  font-family: var(--font-main);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+section h2 {
+  font-size: 1.9rem;
+  margin: 0 0 28px;
 }
 
 /* =====================================================
-   Hero Section / Start Page
+   About — a small, understated photo beside the text,
+   not a hero centerpiece.
+   ===================================================== */
+.about-flex {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.about-photo {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+  filter: grayscale(10%);
+}
+
+.about-text {
+  flex: 1;
+  min-width: 260px;
+}
+
+.about-text h2 {
+  margin-bottom: 16px;
+}
+
+.about-text p {
+  font-size: 1rem;
+  line-height: 1.7;
+  margin: 0 0 14px;
+  color: var(--color-text);
+}
+
+@media (max-width: 480px) {
+  .about-flex {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
+
+/* =====================================================
+   Hero — full-bleed ink panel, name/intro only (no photo).
    ===================================================== */
 .hero {
-  height: calc(100vh - 80px); /* занимает весь экран минус header */
+  display: flex;
+  align-items: center;
+  min-height: calc(100vh - 64px);
+  margin: 0;
+  padding: 0;
+  max-width: none;
+  width: 100%;
+  background: var(--color-ink);
+  border-bottom: none;
+  box-sizing: border-box;
+}
+
+.hero-content {
   display: flex;
   flex-direction: column;
-  justify-content: center; /* вертикальное центрирование */
-  align-items: center; /* горизонтальное центрирование */
-  text-align: center; /* выравнивание текста по центру */
+  justify-content: center;
+  max-width: 720px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 60px 24px;
+  color: var(--color-on-ink);
 }
 
-/* Круглое фото */
-.profile-photo {
-  width: 160px;
-  height: 160px;
-  border-radius: 50%; /* делает фото круглым */
-  object-fit: cover; /* фото не искажается */
-  display: block;
-  margin-bottom: 15px;
+.hero .eyebrow-label {
+  color: var(--color-on-ink-accent);
 }
 
-/* Имя и роль */
 .hero h1 {
-  margin-bottom: 5px;
+  margin: 0 0 20px;
+  font-size: clamp(2.3rem, 4vw, 3.4rem);
+  color: var(--color-on-ink);
 }
 
-.hero h2 {
-  margin-top: 0;
-  font-weight: normal;
-}
-
-/* Краткое описание / видение */
 .hero-text {
-  font-size: 18px;
-  margin: 15px 0;
+  max-width: 520px;
 }
 
-
-/* --- Текст в Hero по левому краю с мягким курсивом и отступом для абзацев --- */
-.left-italic {
-  text-align: justify;       /* ровное распределение текста по ширине */
-  font-style: normal;        /* курсив это italic, а тут его уберем */
-  font-weight: normal;       /* мягкий курсив, не жирный */
-  line-height: 1.6;          /* читаемый межстрочный интервал */
-  max-width: 800px;          /* ограничение ширины для удобного чтения */
-  margin: 20px auto;         /* центрирование блока горизонтально и отступ сверху/снизу */
+.hero-text p {
+  font-size: 1.05rem;
+  line-height: 1.7;
+  margin: 0 0 14px;
+  color: var(--color-on-ink-muted);
 }
 
-/* отступ первой строки каждого абзаца внутри блока */
-.left-italic p {
-  text-indent: 1.2em;        /* отступ первой строки */
-  margin-bottom: 0 ;        /* расстояние между абзацами */
-  padding: 0;
-}
-
-/* добавляем небольшое расстояние между абзацами */
-.left-italic p + p {
-  margin-top: 0.5em;        /* только между абзацами */
-}
-
-/* Кнопки в Hero */
 .hero-buttons {
-  margin: 20px 0;
+  margin: 26px 0 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
 }
 
+.social-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.social-links a {
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-on-ink-muted);
+}
+
+.social-links a:hover {
+  color: var(--color-on-ink);
+}
+
+/* =====================================================
+   Buttons — flat, square-ish corners, understated CTAs.
+   ===================================================== */
 .button {
-  display: inline-block;
-  margin: 10px;
-  padding: 10px 20px;
-  background-color: #003366;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 28px;
+  background-color: var(--color-accent);
   color: #fff;
-  border-radius: 8px;
-  font-weight: bold;
+  border-radius: 3px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
 }
 
 .button:hover {
-  background-color: #ff6600;
+  background-color: var(--color-accent-hover);
 }
 
 .button.secondary {
   background-color: transparent;
-  color: #003366;
-  border: 2px solid #003366;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
 }
 
-/* Социальные ссылки (GitHub, LinkedIn, XING) */
-.social-links {
-  margin-top: 15px;
+.button.secondary:hover {
+  background-color: var(--color-accent);
+  color: #fff;
 }
 
-.social-links a {
-  margin: 0 10px;
-  font-weight: bold;
-  color: #003366;
+.hero .button {
+  background-color: var(--color-on-ink);
+  color: var(--color-ink);
 }
 
-.social-links a:hover {
-  color: #ff6600;
+.hero .button:hover {
+  background-color: #fff;
+}
+
+.hero .button.secondary {
+  background-color: transparent;
+  color: var(--color-on-ink);
+  border: 1px solid var(--color-on-ink-muted);
+}
+
+.hero .button.secondary:hover {
+  background-color: var(--color-on-ink);
+  color: var(--color-ink);
+}
+
+/* Compact button variant — for rows of actions in tables (Event Manager
+   admin), where the default CTA-sized button is too big and wraps badly. */
+.button.small {
+  padding: 6px 14px;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
 }
 
 /* =====================================================
-   Карточки проектов и сертификатов
+   Skills chips (kept for future use; not on the current
+   4 pages, but shared with events.css conventions).
    ===================================================== */
-.project-card,
-.certificate-card {
-  background-color: #b3d9ff;
-  padding: 20px;
-  margin-bottom: 20px;
-  border-radius: 8px;
-  word-wrap: break-word; /* длинные ссылки и текст не выходят за блок */
+.skills-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin-top: 4px;
+}
+
+.skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.skill-chip .icon {
+  color: var(--color-accent);
+  width: 19px;
+  height: 19px;
+}
+
+.skill-chip:nth-child(even) .icon {
+  color: var(--color-accent-2);
+}
+
+.icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
 }
 
 /* =====================================================
-   Ссылки контактов (email, GitHub, LinkedIn)
+   Project grid — plain full-bleed image tiles with a
+   caption underneath: no border, no card background,
+   no shadow.
    ===================================================== */
+.tile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin-top: 4px;
+  background: var(--color-border);
+}
+
+.project-tile {
+  display: block;
+  background: var(--color-bg-section);
+  color: inherit;
+}
+
+.project-tile figure {
+  margin: 0;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--color-ink);
+}
+
+.project-tile svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  transition: transform 0.4s ease;
+}
+
+.project-tile:hover svg {
+  transform: scale(1.04);
+}
+
+.project-tile figcaption {
+  padding: 16px 4px 28px;
+}
+
+.project-tile h3 {
+  font-family: var(--font-main);
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--color-text);
+}
+
+.project-tile p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+}
+
+.project-tile .tile-meta {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+@media (max-width: 640px) {
+  .tile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =====================================================
+   Certificates — a plain divided list, no card box.
+   ===================================================== */
+.cert-list {
+  margin-top: 4px;
+  border-top: 1px solid var(--color-border);
+}
+
+.cert-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.cert-row .icon {
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.cert-row:nth-child(even) .icon {
+  color: var(--color-accent-2);
+}
+
+.cert-row h3 {
+  font-family: var(--font-main);
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.cert-row a {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.cert-row a:hover {
+  color: var(--color-accent-hover);
+}
+
+/* =====================================================
+   Contact — plain letter-spaced links, no card box.
+   ===================================================== */
+.contact-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  margin-top: 22px;
+}
+
 .contact-link {
-  margin-right: 15px;
-  font-weight: bold;
-  color: #003366;
-  word-wrap: break-word; /* длинные ссылки не вылезают */
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
+  color: var(--color-text);
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--color-border);
+}
+
+.contact-link .icon {
+  color: var(--color-accent);
+  width: 20px;
+  height: 20px;
 }
 
 .contact-link:hover {
-  color: #ff6600;
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
 }
 
 /* =====================================================
-   Footer / подвал
+   Footer — matches the ink header for symmetry.
    ===================================================== */
 footer {
   text-align: center;
-  padding: 20px;
-  background-color: #99ccff;
-  margin-top: 40px;
+  padding: 28px;
+  background-color: var(--color-ink);
+  color: var(--color-on-ink-muted);
+  font-size: 0.85rem;
+}
+
+footer a {
+  color: var(--color-on-ink-muted);
+  text-decoration: underline;
+}
+
+footer a:hover {
+  color: var(--color-on-ink);
+}
+
+/* Unobtrusive admin entry point (Event Manager login), placed in the
+   footer next to Datenschutz — same color as the footer, no underline,
+   low opacity, so a regular visitor reads it as a stray dot rather
+   than a link. Iryna knows it's there and can click it. */
+.admin-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  vertical-align: middle;
+}
+
+.admin-dot:hover {
+  opacity: 0.8;
 }
 
 /* =====================================================
-   Адаптивность / Мобильные устройства
+   Responsive
    ===================================================== */
 @media (max-width: 768px) {
-  /* Hero на мобильных: подстраиваем высоту */
-  .hero {
-    height: auto;
-    padding: 20px;
-  }
-
-  /* Кнопки в Hero на всю ширину */
-  .hero-buttons {
-    flex-direction: column;
-    width: 100%;
-    align-items: center;
-  }
-
-  .button {
-    width: 90%;
-    text-align: center;
-    margin: 5px 0;
-  }
-
-  /* Социальные ссылки на мобильных */
-  .social-links {
-    flex-wrap: wrap;
-    text-align: center;
-  }
-
-  .social-links a {
-    display: inline-block;
-    margin: 5px 10px;
-  }
-
-  /* Header на мобильных: вертикальное меню */
-  header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  header nav {
-    margin-top: 10px;
-    width: 100%;
+  .hero-content {
+    padding: 40px 24px;
   }
 
   header nav a {
-    margin: 5px 10px 5px 0;
+    margin-left: 14px;
+    font-size: 0.75rem;
+  }
+
+  section {
+    padding: 40px 24px;
   }
 }

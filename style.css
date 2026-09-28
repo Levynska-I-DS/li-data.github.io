@@ -522,9 +522,15 @@ footer a:hover {
   display: inline-block;
   width: 5px;
   height: 5px;
-  margin-left: 10px;
+  /* Padding + background-clip keep the VISIBLE dot the same tiny size
+     (so it still just reads as a stray dot) while giving it a much
+     bigger invisible tap target -- fixed 28.09.2026 after the dot next
+     to "Datenschutz" was too easy to hit by accident on a phone. */
+  padding: 11px;
+  background-clip: content-box;
+  margin-left: 18px;
   border-radius: 50%;
-  background: currentColor;
+  background-color: currentColor;
   opacity: 0.35;
   vertical-align: middle;
 }
@@ -548,5 +554,49 @@ footer a:hover {
 
   section {
     padding: 40px 24px;
+  }
+}
+
+/* Narrow phones: 4 nav links + the site h1 no longer fit on one row even
+   at the reduced 768px sizing above, so the nav wraps onto a second line.
+   The header was fixed-height (64px) with the page's body compensating
+   via a fixed padding-top -- once the header actually grows past 64px
+   from wrapping, the extra row overlaps page content instead of pushing
+   it down. Fixed 28.09.2026: below 480px the header stops being fixed
+   and wraps onto two centered rows in normal document flow instead, so
+   its real height (whatever it ends up being) is what pushes the page
+   down -- no more guessing a pixel compensation value. */
+@media (max-width: 480px) {
+  header {
+    position: static;
+    flex-wrap: wrap;
+    justify-content: center;
+    height: auto;
+    padding: 12px 16px;
+    row-gap: 8px;
+  }
+
+  header h1 {
+    width: 100%;
+    text-align: center;
+  }
+
+  header nav {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  header nav a {
+    margin: 4px 8px;
+  }
+
+  body {
+    padding-top: 0;
+  }
+
+  .hero {
+    min-height: auto;
   }
 }

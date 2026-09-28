@@ -22,8 +22,12 @@
       <label for="password">Passwort</label>
       <input type="password" id="password" required>
       <p id="error-msg" style="color:#cc0000; display:none;"></p>
+      <p id="info-msg" style="color:var(--color-text-muted); display:none;"></p>
       <button type="submit" class="button" style="margin-top:16px;">Anmelden</button>
     </form>
+    <p style="text-align:right; margin-top:12px;">
+      <a href="#" id="forgot-link" style="font-size:0.85em;">Passwort vergessen?</a>
+    </p>
   </div>
 </section>
 
@@ -39,10 +43,13 @@
 
   const form = document.getElementById('login-form');
   const errorMsg = document.getElementById('error-msg');
+  const infoMsg = document.getElementById('info-msg');
+  const forgotLink = document.getElementById('forgot-link');
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorMsg.style.display = 'none';
+    infoMsg.style.display = 'none';
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
 
@@ -53,6 +60,33 @@
       return;
     }
     window.location.href = 'events/events.html';
+  });
+
+  forgotLink.addEventListener('click', async (e) => {
+    e.preventDefault();
+    errorMsg.style.display = 'none';
+    infoMsg.style.display = 'none';
+
+    const email = document.getElementById('email').value.trim();
+    if (!email) {
+      errorMsg.textContent = 'Bitte zuerst deine E-Mail-Adresse oben eingeben.';
+      errorMsg.style.display = 'block';
+      return;
+    }
+
+    forgotLink.textContent = 'Wird gesendet …';
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + window.location.pathname.replace('login.html', 'reset-password.html')
+    });
+    forgotLink.textContent = 'Passwort vergessen?';
+
+    if (error) {
+      errorMsg.textContent = 'Fehler: ' + error.message;
+      errorMsg.style.display = 'block';
+      return;
+    }
+    infoMsg.textContent = 'Falls ein Konto mit dieser E-Mail existiert, wurde eine E-Mail mit einem Link zum Zurücksetzen des Passworts gesendet.';
+    infoMsg.style.display = 'block';
   });
 </script>
 

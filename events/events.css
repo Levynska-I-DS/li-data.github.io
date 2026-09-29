@@ -76,3 +76,39 @@ body.em-public-theme {
   .em-table, .em-table thead, .em-table tbody, .em-table th, .em-table td, .em-table tr { display: block; }
   .em-table tr { margin-bottom: 12px; }
 }
+
+/* ---- Event info page (step 1 before the registration form) ---- */
+.em-info-card h2 { margin-top: 0; }
+.em-info-image { width: 100%; max-width: 520px; border-radius: 8px; display: block; margin-bottom: 16px; }
+.em-info-intro { font-size: 1.05em; margin-bottom: 8px; }
+.em-info-blocks { display: flex; flex-direction: column; gap: 12px; margin: 16px 0 20px; }
+.em-info-block { background: var(--em-block-bg, #FFF6F7); border: 1px solid var(--em-block-border, #F6E3E6); border-left: 4px solid var(--em-block-accent, #EE738F); border-radius: 8px; padding: 12px 16px; }
+.em-info-block h3 { margin: 0 0 6px; font-size: 1.05em; color: var(--color-ink); display: flex; align-items: center; gap: 8px; }
+.em-info-block p { margin: 6px 0; }
+.em-info-icon { font-size: 1.2em; line-height: 1; }
+.em-info-muted { color: var(--color-text-muted); font-size: 0.92em; }
+.em-info-list { margin: 4px 0; padding-left: 20px; }
+.em-info-list li { margin: 3px 0; }
+.em-info-bank { background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 8px 12px; margin: 8px 0; }
+.em-info-bank div { display: flex; flex-direction: column; padding: 4px 0; }
+.em-info-bank span { color: var(--color-text-muted); font-size: 0.85em; }
+.em-info-bank strong { word-break: break-word; }
+.em-info-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.em-cta { font-size: 1.1em; padding: 12px 24px; }
+.em-info-closed { color: #cc0000; }
+.em-info-back { display: inline-block; margin-bottom: 12px; font-size: 0.95em; }
+
+/* Admin: grouped guest-info fields */
+.em-fieldset { border: 1px solid var(--color-border); border-radius: 8px; padding: 12px 16px 16px; margin-top: 20px; }
+.em-fieldset legend { font-weight: 700; padding: 0 6px; }
+.em-hint { font-size: 0.9em; color: var(--color-text-muted); margin: 4px 0 8px; }
+
+/* ---- Per-event colour accent (events.accent_theme) ----
+   Base stays the same for every event: green header/footer, charcoal text,
+   green headings, coral button. Only a soft tint for page background and
+   info blocks changes, picked in the admin to match the event's poster. */
+body.em-accent-rosa    { --color-bg: #FFFAFA; --em-block-bg: #FFF4F5; --em-block-border: #F6E3E6; --em-block-accent: #EE9AAC; }
+body.em-accent-blau    { --color-bg: #F6F9FC; --em-block-bg: #EEF4FA; --em-block-border: #D9E6F2; --em-block-accent: #6F9FCF; --color-border: #D9E6F2; }
+body.em-accent-gold    { --color-bg: #FFFCF6; --em-block-bg: #FBF5E8; --em-block-border: #EFE3C6; --em-block-accent: #D1AE5E; --color-border: #EFE3C6; }
+body.em-accent-gruen   { --color-bg: #F8FBF8; --em-block-bg: #EFF6F1; --em-block-border: #D6E8DC; --em-block-accent: #6FAE8A; --color-border: #D6E8DC; }
+body.em-accent-neutral { --color-bg: #FAFAF8; --em-block-bg: #F4F4F1; --em-block-border: #E4E4DF; --em-block-accent: #A9ABA4; --color-border: #E4E4DF; }

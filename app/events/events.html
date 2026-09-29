@@ -53,6 +53,9 @@
       <label for="starts_at">Beginn</label>
       <input type="datetime-local" id="starts_at">
 
+      <label for="ends_at">Ende (optional — für die Anzeige „09:30 – 13:00 Uhr“)</label>
+      <input type="datetime-local" id="ends_at">
+
       <label for="location">Ort</label>
       <input type="text" id="location">
 
@@ -108,6 +111,8 @@
         <option value="buffet">Buffet</option>
         <option value="snack">Kleiner Imbiss (Fingerfood)</option>
       </select>
+      <label for="meal-info">Verpflegung — Details für Gäste (optional)</label>
+      <textarea id="meal-info" rows="2" placeholder="z. B. Gemeinsames Mittagessen mit Kiddusch, koscher"></textarea>
 
       <label for="fee-mode">Teilnahmebeitrag für Nicht-Mitglieder — Art der Berechnung</label>
       <select id="fee-mode">
@@ -123,6 +128,56 @@
         <label for="fee-amount-child">Betrag pro Kind (€)</label>
         <input type="number" id="fee-amount-child" min="0" step="0.01">
       </div>
+
+      <fieldset class="em-fieldset">
+        <legend>Informationen für Gäste (Seite vor dem Anmeldeformular)</legend>
+        <p class="em-hint">Gäste sehen auf der Veranstaltungsseite: Bild, Beschreibung, Ort, Datum und Uhrzeit, Anmeldeschluss und diese zwei Texte — danach „Zur Anmeldung“. Leere Felder werden nicht angezeigt.</p>
+        <label for="accent-theme">🎨 Farbakzent der Seite (wird beim Hochladen des Plakats automatisch vorgeschlagen)</label>
+        <select id="accent-theme">
+          <option value="rosa">Rosa (Standard)</option>
+          <option value="blau">Himmelblau (z. B. Chanukka)</option>
+          <option value="gold">Gold / Sand</option>
+          <option value="gruen">Salbeigrün</option>
+          <option value="neutral">Neutral (hell)</option>
+        </select>
+
+        <label for="copy-from-event">Texte aus einer anderen Veranstaltung übernehmen (danach frei änderbar)</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <select id="copy-from-event" style="flex:1; min-width:200px;"><option value="">— Veranstaltung wählen —</option></select>
+          <button type="button" id="copy-guest-info" class="button secondary small">Übernehmen</button>
+        </div>
+
+        <label for="audience-info">👨‍👩‍👧‍👦 Wer kann teilnehmen?</label>
+        <textarea id="audience-info" rows="5"></textarea>
+
+        <label for="program-info">✨ Was erwartet euch? (eine Zeile = ein Punkt)</label>
+        <textarea id="program-info" rows="5"></textarea>
+
+      </fieldset>
+
+      <fieldset class="em-fieldset">
+        <legend>Nur für E-Mails an Teilnehmer (nicht öffentlich auf der Seite)</legend>
+        <p class="em-hint">Diese Angaben werden später gezielt per E-Mail verschickt — z. B. Bankverbindung und Sicherheitskontrolle nur an Nicht-Mitglieder.</p>
+        <p class="em-hint" style="margin-top:14px;"><strong>💶 Zahlungsdaten</strong> (der Betrag kommt aus „Teilnahmebeitrag“ oben):</p>
+        <label for="payment-recipient">Kontoinhaber</label>
+        <input type="text" id="payment-recipient">
+        <label for="payment-iban">IBAN</label>
+        <input type="text" id="payment-iban">
+        <label for="payment-bic">BIC</label>
+        <input type="text" id="payment-bic">
+        <label for="payment-reference">Verwendungszweck (Gäste ergänzen Vor- und Nachname)</label>
+        <input type="text" id="payment-reference" placeholder="z. B. Familienschabbat 24.10.2026">
+        <label for="payment-paypal">PayPal (E-Mail, optional)</label>
+        <input type="email" id="payment-paypal">
+
+        <label for="security-email">🔐 Sicherheitskontrolle — E-Mail für die Ausweiskopie</label>
+        <input type="email" id="security-email" placeholder="sicherheit@irgw.de">
+        <label for="security-info">Zusätzlicher Hinweis zur Sicherheitskontrolle (optional)</label>
+        <textarea id="security-info" rows="2"></textarea>
+
+        <label for="contact-email">📧 Kontakt für Fragen</label>
+        <input type="email" id="contact-email">
+      </fieldset>
 
       <label for="status">Status</label>
       <select id="status">
@@ -221,7 +276,7 @@
   const FIXED_ROOMS = ['Religionsschule Zimmer 1', 'Religionsschule Zimmer 2', 'Jugendzentrum', 'Gemeindesaal', 'Mehrzweckraum', 'Halle', 'Sportplatz', 'Hof'];
 
   // Default sponsorship categories from the original project brief; editable per event below.
-  const FIXED_SPONSOR_CATEGORIES = ['Salat-Dekoration', 'Blumen', 'Zusätzliche Getränke', 'Kinder-Cocktailbar'];
+  const FIXED_SPONSOR_CATEGORIES = ['Dekoration', 'Blumen', 'Zusätzliche Getränke', 'Kinder-Cocktailbar'];
 
   const form = document.getElementById('event-form');
   const formError = document.getElementById('form-error');
@@ -231,6 +286,32 @@
   const titleInput = document.getElementById('title');
   const slugInput = document.getElementById('slug');
   const descriptionInput = document.getElementById('description');
+
+  // Guest-info fields (migration 022): id of the input -> column in public.events.
+  const GUEST_INFO_FIELDS = {
+    'meal-info': 'meal_info',
+    'audience-info': 'audience_info',
+    'program-info': 'program_info',
+    'payment-recipient': 'payment_recipient',
+    'payment-iban': 'payment_iban',
+    'payment-bic': 'payment_bic',
+    'payment-reference': 'payment_reference',
+    'payment-paypal': 'payment_paypal',
+    'security-email': 'security_email',
+    'security-info': 'security_info',
+    'contact-email': 'contact_email',
+  };
+  // Copy guest-info texts (+ colour accent) from another event, so recurring events
+  // don't need retyping. Everything stays editable per event afterwards.
+  let allEventsCache = [];
+  document.getElementById('copy-guest-info').addEventListener('click', () => {
+    const src = allEventsCache.find(e => e.id === document.getElementById('copy-from-event').value);
+    if (!src) return;
+    const hasText = Object.keys(GUEST_INFO_FIELDS).some(id => document.getElementById(id).value.trim());
+    if (hasText && !confirm('Vorhandene Texte in diesen Feldern werden ersetzt. Fortfahren?')) return;
+    for (const [id, col] of Object.entries(GUEST_INFO_FIELDS)) document.getElementById(id).value = src[col] || '';
+    document.getElementById('accent-theme').value = src.accent_theme || 'rosa';
+  });
   const mealTypeSelect = document.getElementById('meal-type');
   const nonMemberFeeInput = document.getElementById('non-member-fee');
   const feeModeSelect = document.getElementById('fee-mode');
@@ -268,10 +349,48 @@
     if (!slugTouched) slugInput.value = slugify(titleInput.value);
   });
 
+  // Auto colour accent: when a poster is uploaded, look at its outer frame
+  // (= usually the background colour) and pick the matching preset.
+  // Mapping to fixed presets (instead of copying raw colours) keeps the page harmonious.
+  // The choice is only a suggestion - the select stays editable.
+  const ACCENT_NAMES = { rosa: 'Rosa', blau: 'Himmelblau', gold: 'Gold / Sand', gruen: 'Salbeigrün', neutral: 'Neutral' };
+  function detectAccentFromImage(img) {
+    const W = 80, H = Math.max(1, Math.round(80 * img.naturalHeight / img.naturalWidth));
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, W, H);
+    const px = ctx.getImageData(0, 0, W, H).data;
+    const bins = { rosa: 0, gold: 0, gruen: 0, blau: 0 }; let frame = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (x > W * 0.15 && x < W * 0.85 && y > H * 0.12 && y < H * 0.88) continue; // only the outer frame
+      frame++;
+      const i = (y * W + x) * 4, r = px[i] / 255, g = px[i + 1] / 255, b = px[i + 2] / 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+      if (d === 0) continue;
+      const sat = d / (1 - Math.abs(2 * l - 1));
+      if (sat < 0.08 || l < 0.15 || l > 0.97) continue;
+      let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h = (h * 60 + 360) % 360;
+      const k = (h >= 330 || h < 20) ? 'rosa' : h < 65 ? 'gold' : h < 170 ? 'gruen' : h < 260 ? 'blau' : 'rosa';
+      bins[k]++;
+    }
+    const [best, count] = Object.entries(bins).sort((a, b) => b[1] - a[1])[0];
+    return count < frame * 0.25 ? 'neutral' : best;
+  }
+
   imageInput.addEventListener('change', () => {
     const file = imageInput.files[0];
     if (file) {
-      imagePreview.innerHTML = `<img src="${URL.createObjectURL(file)}" style="max-width:200px; border-radius:6px;">`;
+      const url = URL.createObjectURL(file);
+      imagePreview.innerHTML = `<img src="${url}" style="max-width:200px; border-radius:6px;"><p id="accent-hint" class="em-hint"></p>`;
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const accent = detectAccentFromImage(img);
+          document.getElementById('accent-theme').value = accent;
+          document.getElementById('accent-hint').textContent = `🎨 Farbakzent automatisch aus dem Plakat gewählt: ${ACCENT_NAMES[accent]} (oben unter „Farbakzent“ änderbar).`;
+        } catch (e) { console.warn('Accent detection failed', e); }
+      };
+      img.src = url;
     }
   });
 
@@ -523,7 +642,7 @@
 
   function fillSponsorCategories(categories) {
     resetSponsorCategories();
-    (categories || []).forEach(name => {
+    (categories || []).map(n => n === 'Salat-Dekoration' ? 'Dekoration' : n).forEach(name => { // old name renamed 29.09.2026
       const fixedItem = [...fixedSponsorCategoriesContainer.querySelectorAll('.sponsor-category-item')].find(i => i.dataset.categoryName === name);
       if (fixedItem) {
         fixedItem.checkbox.checked = true;
@@ -679,6 +798,11 @@
       return;
     }
 
+    allEventsCache = data;
+    const copySelect = document.getElementById('copy-from-event');
+    copySelect.innerHTML = '<option value="">— Veranstaltung wählen —</option>' + data
+      .map(ev => `<option value="${ev.id}">${ev.title}${ev.starts_at ? ' (' + new Date(ev.starts_at).toLocaleDateString('de-DE') + ')' : ''}</option>`).join('');
+
     const now = new Date();
     tbody.innerHTML = data.map(ev => {
       const isPast = ev.starts_at && new Date(ev.starts_at) < now;
@@ -732,6 +856,9 @@
     slugTouched = true; // don't let further title edits overwrite an existing event's link
     descriptionInput.value = ev.description || '';
     document.getElementById('starts_at').value = isoToLocalInput(ev.starts_at);
+    document.getElementById('ends_at').value = isoToLocalInput(ev.ends_at);
+    for (const [id, col] of Object.entries(GUEST_INFO_FIELDS)) document.getElementById(id).value = ev[col] || '';
+    document.getElementById('accent-theme').value = ev.accent_theme || 'rosa';
     document.getElementById('location').value = ev.location || '';
     document.getElementById('capacity').value = ev.capacity || '';
     document.getElementById('registration-deadline').value = isoToLocalInput(ev.registration_deadline);
@@ -797,6 +924,7 @@
       slug: slugInput.value,
       description: descriptionInput.value.trim() || null,
       starts_at: localInputToISO(document.getElementById('starts_at').value),
+      ends_at: localInputToISO(document.getElementById('ends_at').value),
       location: document.getElementById('location').value.trim() || null,
       capacity: document.getElementById('capacity').value ? Number(document.getElementById('capacity').value) : null,
       registration_deadline: localInputToISO(document.getElementById('registration-deadline').value),
@@ -815,6 +943,8 @@
       order_products: collectOrderProducts(),
       updated_at: new Date().toISOString(),
     };
+    for (const [id, col] of Object.entries(GUEST_INFO_FIELDS)) payload[col] = document.getElementById(id).value.trim() || null;
+    payload.accent_theme = document.getElementById('accent-theme').value;
 
     let error;
     if (id) {

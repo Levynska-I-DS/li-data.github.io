@@ -22,8 +22,25 @@
 <script type="module">
   import { supabase } from '../shared/supabase-client.js';
 
-  // Labels for the meal_type column, shown on the public event detail page.
+  // Step 1 of registration: guests first read the short event info here,
+  // then continue with "Zur Anmeldung" to the form (register.html).
+  // Bank details, security check and contact are deliberately NOT shown publicly --
+  // they are sent by e-mail only to the people who need them (fields in the admin form).
+
   const MEAL_LABELS = { meal: 'Mahlzeit', buffet: 'Buffet', snack: 'Kleiner Imbiss' };
+  const TZ = 'Europe/Berlin';
+
+  // All texts come from the admin form -> escape before inserting as HTML.
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // Empty line = new paragraph, single line break = <br>.
+  const paragraphs = (text) => esc(text).split(/\n\s*\n/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+  const bullets = (text) => `<ul class="em-info-list">${esc(text).split('\n').map(l => l.replace(/^\s*[–\-•*]\s*/, '').trim()).filter(Boolean).map(l => `<li>${l}</li>`).join('')}</ul>`;
+  const fmtDate = (iso) => new Date(iso).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: TZ });
+  const fmtTime = (iso) => new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: TZ });
+
+  function block(icon, title, bodyHtml) {
+    return `<div class="em-info-block"><h3><span class="em-info-icon" aria-hidden="true">${icon}</span>${title}</h3>${bodyHtml}</div>`;
+  }
 
   const detail = document.getElementById('event-detail');
   const slug = new URLSearchParams(window.location.search).get('event');
@@ -33,7 +50,7 @@
   } else {
     const { data: ev, error } = await supabase
       .from('events')
-      .select('slug, title, description, starts_at, location, image_url, meal_type, sponsor_categories, registration_deadline, status')
+      .select('*')
       .eq('slug', slug)
       .single();
 
@@ -41,24 +58,45 @@
       console.error('Supabase error loading event (slug=' + slug + '):', error);
       detail.innerHTML = '<p>Veranstaltung nicht gefunden.</p>';
     } else {
+      document.title = ev.title + ' – Familienschabbat';
+      document.body.classList.add('em-accent-' + (ev.accent_theme || 'rosa'));
       const deadlinePassed = ev.registration_deadline && new Date() > new Date(ev.registration_deadline);
+      const deadlineDate = ev.registration_deadline ? fmtDate(ev.registration_deadline) : null;
+
       const registerHtml = deadlinePassed
-        ? `<p style="color:#cc0000;"><strong>Anmeldung geschlossen</strong> — die Anmeldefrist ist am ${new Date(ev.registration_deadline).toLocaleString('de-DE')} abgelaufen.</p>`
-        : `<a class="button" href="register.html?event=${ev.slug}">Jetzt anmelden</a>`;
-      const deadlineHint = (!deadlinePassed && ev.registration_deadline)
-        ? `<p><em>Anmeldeschluss: ${new Date(ev.registration_deadline).toLocaleString('de-DE')}</em></p>`
-        : '';
+        ? `<p class="em-info-closed"><strong>Anmeldung geschlossen</strong> — die Anmeldefrist ist am ${esc(deadlineDate)} abgelaufen.</p>`
+        : `<a class="button em-cta" href="register.html?event=${encodeURIComponent(ev.slug)}">Zur Anmeldung →</a>`;
+
+      const blocks = [];
+
+      if (ev.location) blocks.push(block('🕍', 'Wo?', `<p>${esc(ev.location)}</p>`));
+
+      if (ev.starts_at) {
+        const time = ev.ends_at ? `${fmtTime(ev.starts_at)} – ${fmtTime(ev.ends_at)} Uhr` : `ab ${fmtTime(ev.starts_at)} Uhr`;
+        blocks.push(block('📅', 'Wann?', `<p>${esc(fmtDate(ev.starts_at))}<br><span class="em-info-muted">🕤 ${time}</span></p>`));
+      }
+
+      if (deadlineDate && !deadlinePassed) blocks.push(block('📬', 'Anmeldeschluss', `<p>Bitte meldet euch bis <strong>${esc(deadlineDate)}</strong> an.</p>`));
+
+      if (ev.audience_info) blocks.push(block('👨‍👩‍👧‍👦', 'Wer kann teilnehmen?', paragraphs(ev.audience_info)));
+      if (ev.program_info) blocks.push(block('✨', 'Was erwartet euch?', bullets(ev.program_info)));
+
+      if ((ev.meal_type && ev.meal_type !== 'none') || ev.meal_info) {
+        const label = MEAL_LABELS[ev.meal_type];
+        blocks.push(block('🍽️', 'Verpflegung', `${label ? `<p><strong>${esc(label)}</strong></p>` : ''}${ev.meal_info ? paragraphs(ev.meal_info) : ''}`));
+      }
+
       detail.innerHTML = `
-        <div class="em-card">
-          ${ev.status !== 'published' ? '<p style="background:#fff3cd; color:#7a5c00; padding:6px 10px; border-radius:6px; font-size:0.85em;">Vorschau — dieses Event ist noch nicht veröffentlicht (Status: ' + ev.status + ') und für Besucher nicht sichtbar.</p>' : ''}
-          ${ev.image_url ? `<img src="${ev.image_url}" alt="${ev.title}" style="width:100%; max-width:500px; border-radius:8px; display:block; margin-bottom:16px;">` : ''}
-          <h2>${ev.title}</h2>
-          <p>${ev.starts_at ? new Date(ev.starts_at).toLocaleString('de-DE') : ''} ${ev.location ? '· ' + ev.location : ''}</p>
-          <p>${ev.description || ''}</p>
-          ${ev.meal_type && ev.meal_type !== 'none' ? `<p><em>Verpflegung: ${MEAL_LABELS[ev.meal_type] || ev.meal_type}</em></p>` : ''}
-          ${deadlineHint}
-          ${registerHtml}
-          ${ev.sponsor_categories && ev.sponsor_categories.length ? `<a class="button secondary" href="sponsor.html?event=${ev.slug}">Sponsor werden</a>` : ''}
+        <div class="em-card em-info-card">
+          ${ev.status !== 'published' ? '<p style="background:#fff3cd; color:#7a5c00; padding:6px 10px; border-radius:6px; font-size:0.85em;">Vorschau — dieses Event ist noch nicht veröffentlicht (Status: ' + esc(ev.status) + ') und für Besucher nicht sichtbar.</p>' : ''}
+          ${ev.image_url ? `<img src="${esc(ev.image_url)}" alt="${esc(ev.title)}" class="em-info-image">` : ''}
+          <h2>${esc(ev.title)}</h2>
+          ${ev.description ? `<div class="em-info-intro">${paragraphs(ev.description)}</div>` : ''}
+          <div class="em-info-blocks">${blocks.join('')}</div>
+          <div class="em-info-actions">
+            ${registerHtml}
+            ${ev.sponsor_categories && ev.sponsor_categories.length ? `<a class="button secondary" href="sponsor.html?event=${encodeURIComponent(ev.slug)}">Sponsor werden</a>` : ''}
+          </div>
         </div>
       `;
     }

@@ -251,7 +251,7 @@
 
     const { data: ev, error } = await supabase
       .from('events')
-      .select('id, slug, title, starts_at, location, meal_type, non_member_fee, fee_mode, fee_amount_child, requires_code, order_products, registration_deadline, status, has_kindertisch, has_seating, tables')
+      .select('id, slug, title, starts_at, location, meal_type, non_member_fee, fee_mode, fee_amount_child, requires_code, order_products, registration_deadline, status, has_kindertisch, has_seating, tables, ends_at, security_email, accent_theme')
       .eq('slug', slug)
       .single();
 
@@ -356,13 +356,15 @@
   }
 
   function renderForm(ev, invitation) {
+    document.body.classList.add('em-accent-' + (ev.accent_theme || 'rosa'));
     const showMeal = ev.meal_type && ev.meal_type !== 'none';
     const hasFee = ev.non_member_fee && Number(ev.non_member_fee) > 0;
 
     render(`
       <div class="em-card">
+        <a class="em-info-back" href="event.html?event=${encodeURIComponent(ev.slug)}">← ${t('backToEvent')}</a>
         <h2>${t('registrationTitle', ev.title)}</h2>
-        <p>${ev.starts_at ? new Date(ev.starts_at).toLocaleString(LOCALE[lang]) : ''} ${ev.location ? '· ' + ev.location : ''}</p>
+        <p>${ev.starts_at ? new Date(ev.starts_at).toLocaleString(LOCALE[lang], { dateStyle: 'full', timeStyle: 'short' }) : ''}${ev.ends_at ? ' – ' + new Date(ev.ends_at).toLocaleTimeString(LOCALE[lang], { hour: '2-digit', minute: '2-digit' }) : ''} ${ev.location ? '· ' + ev.location : ''}</p>
 
         <form id="register-form" class="em-form">
           <label for="full_name">${t('contactName')}</label>
@@ -529,6 +531,7 @@
     idCheckText.textContent = ev.registration_deadline
       ? t('idCheckText', new Date(ev.registration_deadline).toLocaleDateString(LOCALE[lang]))
       : t('idCheckTextNoDeadline');
+    if (ev.security_email) idCheckText.textContent = idCheckText.textContent.replace('sicherheit@irgw.de', ev.security_email);
 
     function updateUnder6Visibility() {
       const anyUnder6 = [...childrenList.querySelectorAll('.child-row')].some(row => {

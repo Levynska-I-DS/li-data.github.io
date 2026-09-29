@@ -601,7 +601,15 @@
         under6_supervision_ack: anyUnder6 ? under6Ack.checked : null,
       };
 
-      const { data: inserted, error } = await supabase.from('registrations').insert(payload).select().single();
+      // The id is generated here in the browser instead of reading it back with .select():
+      // anonymous visitors have no SELECT right on registrations (privacy), so
+      // insert().select() fails for them with "new row violates row-level security policy".
+      const newId = (crypto.randomUUID ? crypto.randomUUID()
+        : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+            (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)));
+      payload.id = newId;
+      const { error } = await supabase.from('registrations').insert(payload);
+      const inserted = { id: newId };
 
       if (error) {
         formError.textContent = t('errGeneric', error.message);

@@ -183,18 +183,33 @@
     // A child marked at_kindertisch actually sits at the separate children's
     // table, not at the family's chosen table -- subtract them here so a
     // table's occupancy reflects who is really sitting there.
+    // Since 29.09.2026 a party can be split over several tables (table_seats =
+    // [{table_id, seats}]) and may get "freie Platzwahl" (free_seating_count)
+    // when all tables are full. Older rows only have table_id.
     const tableOccupancy = confirmed.reduce((acc, r) => {
+      if (Array.isArray(r.table_seats)) {
+        r.table_seats.forEach(ts => { acc[ts.table_id] = (acc[ts.table_id] || 0) + (Number(ts.seats) || 0); });
+        return acc;
+      }
       if (!r.table_id) return acc;
       const kindertischCountForReg = (childrenByReg[r.id] || []).filter(c => c.at_kindertisch).length;
       const seatsAtTable = Math.max((r.guests_count || 0) - kindertischCountForReg, 0);
       acc[r.table_id] = (acc[r.table_id] || 0) + seatsAtTable;
       return acc;
     }, {});
+    const freeSeatingTotal = confirmed.reduce((sum, r) => sum + (Number(r.free_seating_count) || 0), 0);
+    function tableLabel(r) {
+      const parts = Array.isArray(r.table_seats) && r.table_seats.length
+        ? r.table_seats.map(ts => `${tableById[ts.table_id] ? tableById[ts.table_id].name : '?'}${r.table_seats.length > 1 ? ` (${ts.seats})` : ''}`)
+        : (r.table_id && tableById[r.table_id] ? [tableById[r.table_id].name] : []);
+      if (r.free_seating_count) parts.push(`freie Platzwahl (${r.free_seating_count})`);
+      return parts.join(' + ');
+    }
     const tablesSummaryHtml = hasTables ? `
       <div class="em-table-wrap" style="margin-top:8px;">
         <table class="em-table">
           <thead><tr><th>Tisch</th><th>Belegt</th></tr></thead>
-          <tbody>${ev.tables.map(tb => `<tr><td>${tb.name}</td><td>${tableOccupancy[tb.id] || 0} / ${tb.capacity}</td></tr>`).join('')}</tbody>
+          <tbody>${ev.tables.map(tb => `<tr><td>${tb.name}</td><td>${tableOccupancy[tb.id] || 0} / ${tb.capacity}</td></tr>`).join('')}${freeSeatingTotal ? `<tr><td>Freie Platzwahl (alle Tische voll)</td><td>${freeSeatingTotal}</td></tr>` : ''}</tbody>
         </table>
       </div>
     ` : '';
@@ -242,7 +257,7 @@
         <td>${verifiedEmails.has((r.email || '').toLowerCase()) ? '✓ geprüft' : '—'}</td>
         <td>${r.guests_count}</td>
         <td>${childrenSummary(childrenByReg[r.id] || [])}</td>
-        ${hasTables ? `<td>${tableById[r.table_id] ? tableById[r.table_id].name : '—'}</td>` : ''}
+        ${hasTables ? `<td>${tableLabel(r) || '—'}</td>` : ''}
         ${hasFee ? `<td>${r.fee_consent ? (r.fee_amount_charged != null ? Number(r.fee_amount_charged).toFixed(2) + ' €' : 'zugesagt') : '—'}</td>` : ''}
         <td>${orderItemsSummary(orderItemsByReg[r.id] || [])}</td>
         <td>${r.notes || '—'}</td>
@@ -303,7 +318,7 @@
         r.guests_count,
         childrenCsvSummary(childrenByReg[r.id] || []),
       ];
-      if (hasTables) row.push(tableById[r.table_id] ? tableById[r.table_id].name : '');
+      if (hasTables) row.push(tableLabel(r));
       if (hasFee) row.push(r.fee_consent ? 'Ja' : 'Nein', r.fee_amount_charged != null ? Number(r.fee_amount_charged).toFixed(2) : '');
       row.push(
         orderItemsSummary(orderItemsByReg[r.id] || []),

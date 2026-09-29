@@ -54,7 +54,7 @@
         <form id="sponsor-form" class="em-form">
           <label for="category">Was möchtest du sponsern?</label>
           <select id="category" required>
-            ${ev.sponsor_categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+            ${ev.sponsor_categories.map(c => c === 'Salat-Dekoration' ? 'Dekoration' : c).map(c => `<option value="${c}">${c}</option>`).join('')}
           </select>
 
           <label for="sponsor_name">Name</label>

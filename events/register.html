@@ -54,6 +54,12 @@
       tableSeatsFree: (n) => `${n} Plätze frei`,
       tableFull: 'Tisch voll',
       errTable: 'Bitte einen Tisch wählen.',
+      tableSeatsNeeded: (n) => `Benötigte Tischplätze: ${n} (Kinder am Kindertisch zählen nicht mit)`,
+      tableMoreNeeded: (n) => `An diesem Tisch ist nicht genug Platz – für die restlichen ${n} ${n === 1 ? 'Person' : 'Personen'} bitte einen weiteren Tisch wählen:`,
+      tableTaken: (n) => `${n} ${n === 1 ? 'Platz' : 'Plätze'} an diesem Tisch`,
+      tableAllFull: 'Leider sind alle Plätze an den Tischen bereits reserviert. Sie können sich trotzdem anmelden – es gibt freie Platzwahl an den weiteren Tischen.',
+      tableRestFree: (n) => `Für ${n} ${n === 1 ? 'Person' : 'Personen'} sind keine reservierten Tischplätze mehr frei – hier gilt freie Platzwahl an den weiteren Tischen.`,
+      errTableChanged: 'Die Tischbelegung hat sich gerade geändert. Bitte prüfen Sie Ihre Tischwahl noch einmal.',
       childrenLabel: 'Kinder (optional, für Verpflegung und Allergien wichtig)',
       addChild: '+ Kind hinzufügen',
       childFirstName: 'Vorname',
@@ -112,6 +118,12 @@
       tableSeatsFree: (n) => `${n} seats free`,
       tableFull: 'Table full',
       errTable: 'Please choose a table.',
+      tableSeatsNeeded: (n) => `Table seats needed: ${n} (children at the kids' table are not counted)`,
+      tableMoreNeeded: (n) => `Not enough seats at this table – please choose another table for the remaining ${n} ${n === 1 ? 'person' : 'people'}:`,
+      tableTaken: (n) => `${n} ${n === 1 ? 'seat' : 'seats'} at this table`,
+      tableAllFull: 'Unfortunately all table seats are already reserved. You can still register – there will be free seating at the other tables.',
+      tableRestFree: (n) => `No reserved table seats are left for ${n} ${n === 1 ? 'person' : 'people'} – free seating at the other tables applies.`,
+      errTableChanged: 'The table occupancy has just changed. Please check your table choice again.',
       childrenLabel: 'Children (optional, important for catering and allergies)',
       addChild: '+ Add child',
       childFirstName: 'First name',
@@ -170,6 +182,12 @@
       tableSeatsFree: (n) => `${n} мест свободно`,
       tableFull: 'Мест нет',
       errTable: 'Пожалуйста, выберите стол.',
+      tableSeatsNeeded: (n) => `Нужно мест за столами: ${n} (дети за Kindertisch не считаются)`,
+      tableMoreNeeded: (n) => `За этим столом не хватает мест – для оставшихся (${n}) выберите, пожалуйста, ещё один стол:`,
+      tableTaken: (n) => `Мест за этим столом: ${n}`,
+      tableAllFull: 'К сожалению, все места за столами уже забронированы. Вы всё равно можете зарегистрироваться – будет свободная посадка за другими столами.',
+      tableRestFree: (n) => `Для ${n} чел. забронированных мест за столами больше нет – для них свободная посадка за другими столами.`,
+      errTableChanged: 'Занятость столов только что изменилась. Пожалуйста, проверьте выбор стола ещё раз.',
       childrenLabel: 'Дети (необязательно, важно для питания и аллергий)',
       addChild: '+ Добавить ребёнка',
       childFirstName: 'Имя',
@@ -388,10 +406,8 @@
 
           ${ev.has_seating && ev.tables && ev.tables.length ? `
           <div id="table-block" style="margin-top:8px;">
-            <label for="table_id">${t('tableQuestion')}</label>
-            <select id="table_id" required>
-              <option value="">${t('tableChoosePlaceholder')}</option>
-            </select>
+            <label>${t('tableQuestion')}</label>
+            <div id="table-picker"></div>
           </div>
           ` : ''}
 
@@ -450,7 +466,7 @@
     const form = document.getElementById('register-form');
     const guestsInput = document.getElementById('guests_count');
     const memberStatusSelect = document.getElementById('member_status');
-    const tableSelect = document.getElementById('table_id');
+    const tablePicker = document.getElementById('table-picker');
     const childrenList = document.getElementById('children-list');
     const addChildBtn = document.getElementById('add-child');
     const under6Block = document.getElementById('under6-block');
@@ -480,18 +496,89 @@
       renderTableOptions();
     }
 
+    // Seats needed at the adult tables = all guests minus children marked
+    // "Am Kindertisch" (they sit at the separate children's table).
+    function seatsNeeded() {
+      const total = Number(guestsInput.value) || 1;
+      const atKindertisch = childrenList.querySelectorAll('.child-kindertisch[value="table"]:checked').length;
+      return Math.max(total - atKindertisch, 0);
+    }
+
+    function freeSeatsOf(table) {
+      return Math.max(table.capacity - (tableOccupancy[table.id] || 0), 0);
+    }
+
+    // chosenTables: table ids in the order the guest picked them. A party that
+    // doesn't fit at the first table takes the rest from a second (third, ...)
+    // table. If every table is full, the rest gets "freie Platzwahl".
+    let chosenTables = [];
+
+    // Pure calculation from the current choices -> [{table_id, seats}], rest.
+    function computeAllocation() {
+      let remaining = seatsNeeded();
+      const allocation = [];
+      for (const id of chosenTables) {
+        if (remaining <= 0) break;
+        const table = ev.tables.find(tb => tb.id === id);
+        if (!table) break;
+        const take = Math.min(freeSeatsOf(table), remaining);
+        if (take <= 0) break;
+        allocation.push({ table_id: id, seats: take });
+        remaining -= take;
+      }
+      return { allocation, remaining };
+    }
+
     function renderTableOptions() {
       if (!hasTables) return;
-      const previousValue = tableSelect.value;
-      const requested = Number(guestsInput.value) || 1;
-      tableSelect.innerHTML = `<option value="">${t('tableChoosePlaceholder')}</option>` + ev.tables.map(table => {
-        const occupied = tableOccupancy[table.id] || 0;
-        const free = Math.max(table.capacity - occupied, 0);
-        const isFull = free <= 0;
-        const label = `${table.name} — ${isFull ? t('tableFull') : t('tableSeatsFree', free)}`;
-        return `<option value="${table.id}" ${free < requested ? 'disabled' : ''}>${label}</option>`;
-      }).join('');
-      if (previousValue) tableSelect.value = previousValue;
+      const needed = seatsNeeded();
+      const totalFree = ev.tables.reduce((sum, tb) => sum + freeSeatsOf(tb), 0);
+      let html = `<p style="margin:0 0 6px; color:#555; font-size:0.9em;">${t('tableSeatsNeeded', needed)}</p>`;
+
+      if (needed <= 0) { chosenTables = []; tablePicker.innerHTML = html; return; }
+      if (totalFree <= 0) {
+        chosenTables = [];
+        tablePicker.innerHTML = html + `<p class="em-note" style="margin:0; padding:10px 12px; border-left:4px solid #e08a3c; background:#fff6ec;">${t('tableAllFull')}</p>`;
+        return;
+      }
+
+      let remaining = needed;
+      const kept = [];
+      let step = 0;
+      while (remaining > 0) {
+        const available = ev.tables.filter(tb => freeSeatsOf(tb) > 0 && !kept.includes(tb.id));
+        if (!available.length) {
+          html += `<p style="margin:6px 0 0; padding:10px 12px; border-left:4px solid #e08a3c; background:#fff6ec;">${t('tableRestFree', remaining)}</p>`;
+          break;
+        }
+        if (step > 0) html += `<p style="margin:10px 0 4px;">${t('tableMoreNeeded', remaining)}</p>`;
+        const current = chosenTables[step] && available.some(tb => tb.id === chosenTables[step]) ? chosenTables[step] : '';
+        html += `<select class="table-choice" data-step="${step}" style="margin-bottom:4px;">
+          <option value="">${t('tableChoosePlaceholder')}</option>
+          ${available.map(tb => `<option value="${tb.id}" ${tb.id === current ? 'selected' : ''}>${tb.name} — ${t('tableSeatsFree', freeSeatsOf(tb))}</option>`).join('')}
+        </select>`;
+        if (!current) break;
+        const take = Math.min(freeSeatsOf(ev.tables.find(tb => tb.id === current)), remaining);
+        kept.push(current);
+        remaining -= take;
+        if (kept.length > 1 || remaining > 0) html += `<div style="font-size:0.85em; color:#555; margin-bottom:4px;">${t('tableTaken', take)}</div>`;
+        step += 1;
+      }
+      chosenTables = kept;
+      tablePicker.innerHTML = html;
+      tablePicker.querySelectorAll('.table-choice').forEach(sel => {
+        sel.addEventListener('change', () => {
+          const idx = Number(sel.dataset.step);
+          chosenTables = chosenTables.slice(0, idx);
+          if (sel.value) chosenTables.push(sel.value);
+          renderTableOptions();
+        });
+      });
+    }
+
+    // true when the guest still has to pick a table (a select is showing empty).
+    function tableChoiceMissing() {
+      return [...tablePicker.querySelectorAll('.table-choice')].some(sel => !sel.value);
     }
 
     // Recomputes the displayed participation fee whenever the guest count or the
@@ -552,8 +639,10 @@
         row.remove();
         updateUnder6Visibility();
         updateFeeAmount();
+        renderTableOptions();
       });
       row.querySelector('.child-birth-date').addEventListener('change', updateUnder6Visibility);
+      row.querySelectorAll('.child-kindertisch').forEach(r => r.addEventListener('change', renderTableOptions));
       updateFeeAmount();
     }
 
@@ -580,10 +669,25 @@
         formError.style.display = 'block';
         return;
       }
-      if (hasTables && !tableSelect.value) {
+      if (hasTables && tableChoiceMissing()) {
         formError.textContent = t('errTable');
         formError.style.display = 'block';
         return;
+      }
+
+      // Re-check occupancy right before saving: someone else may have booked
+      // the same seats in the meantime.
+      let seatAllocation = null;
+      if (hasTables) {
+        const before = JSON.stringify(computeAllocation());
+        await loadTableOccupancy();
+        const after = computeAllocation();
+        if (JSON.stringify(after) !== before || tableChoiceMissing()) {
+          formError.textContent = t('errTableChanged');
+          formError.style.display = 'block';
+          return;
+        }
+        seatAllocation = after;
       }
 
       const payload = {
@@ -593,7 +697,9 @@
         phone: document.getElementById('phone').value.trim() || null,
         member_status: memberStatusSelect.value,
         lang: lang,
-        table_id: hasTables ? (tableSelect.value || null) : null,
+        table_id: seatAllocation && seatAllocation.allocation.length ? seatAllocation.allocation[0].table_id : null,
+        table_seats: seatAllocation ? seatAllocation.allocation : null,
+        free_seating_count: seatAllocation && seatAllocation.remaining > 0 ? seatAllocation.remaining : null,
         guests_count: Number(guestsInput.value) || 1,
         meal_count: Number(guestsInput.value) || 1,
         notes: document.getElementById('notes').value.trim() || null,

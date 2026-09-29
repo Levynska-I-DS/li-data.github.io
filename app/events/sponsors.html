@@ -96,7 +96,7 @@
     tbody.innerHTML = rows.map(r => `
       <tr>
         <td>${r.sponsor_name}</td>
-        <td>${r.category}</td>
+        <td>${r.category === 'Salat-Dekoration' ? 'Dekoration' : r.category}</td>
         <td>${r.email || '—'}</td>
         <td>${r.phone || '—'}</td>
         <td>${r.notes || '—'}</td>

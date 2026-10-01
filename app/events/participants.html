@@ -202,14 +202,14 @@
       const parts = Array.isArray(r.table_seats) && r.table_seats.length
         ? r.table_seats.map(ts => `${tableById[ts.table_id] ? tableById[ts.table_id].name : '?'}${r.table_seats.length > 1 ? ` (${ts.seats})` : ''}`)
         : (r.table_id && tableById[r.table_id] ? [tableById[r.table_id].name] : []);
-      if (r.free_seating_count) parts.push(`freie Platzwahl (${r.free_seating_count})`);
+      if (r.free_seating_count) parts.push(`Platz vor Ort (${r.free_seating_count})`);
       return parts.join(' + ');
     }
     const tablesSummaryHtml = hasTables ? `
       <div class="em-table-wrap" style="margin-top:8px;">
         <table class="em-table">
           <thead><tr><th>Tisch</th><th>Belegt</th></tr></thead>
-          <tbody>${ev.tables.map(tb => `<tr><td>${tb.name}</td><td>${tableOccupancy[tb.id] || 0} / ${tb.capacity}</td></tr>`).join('')}${freeSeatingTotal ? `<tr><td>Freie Platzwahl (alle Tische voll)</td><td>${freeSeatingTotal}</td></tr>` : ''}</tbody>
+          <tbody>${ev.tables.map(tb => `<tr><td>${tb.name}</td><td>${tableOccupancy[tb.id] || 0} / ${tb.capacity}</td></tr>`).join('')}${freeSeatingTotal ? `<tr><td>Platz wird vor Ort zugewiesen (alle Tische voll)</td><td>${freeSeatingTotal}</td></tr>` : ''}</tbody>
         </table>
       </div>
     ` : '';

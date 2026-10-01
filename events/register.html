@@ -48,6 +48,8 @@
       memberYes: 'Ja',
       memberNo: 'Nein',
       memberUnknown: 'Weiß ich nicht',
+      memberChoose: '– Bitte Ja oder Nein wählen –',
+      errMember: 'Bitte beantworten Sie die Frage zur Mitgliedschaft mit Ja oder Nein.',
       guestsCount: 'Anzahl Personen insgesamt (inkl. Kinder und Erwachsene)',
       tableQuestion: 'Tisch für Ihre Anmeldung',
       tableChoosePlaceholder: '– Bitte wählen –',
@@ -57,8 +59,8 @@
       tableSeatsNeeded: (n) => `Benötigte Tischplätze: ${n} (Kinder am Kindertisch zählen nicht mit)`,
       tableMoreNeeded: (n) => `An diesem Tisch ist nicht genug Platz – für die restlichen ${n} ${n === 1 ? 'Person' : 'Personen'} bitte einen weiteren Tisch wählen:`,
       tableTaken: (n) => `${n} ${n === 1 ? 'Platz' : 'Plätze'} an diesem Tisch`,
-      tableAllFull: 'Leider sind alle Plätze an den Tischen bereits reserviert. Sie können sich trotzdem anmelden – es gibt freie Platzwahl an den weiteren Tischen.',
-      tableRestFree: (n) => `Für ${n} ${n === 1 ? 'Person' : 'Personen'} sind keine reservierten Tischplätze mehr frei – hier gilt freie Platzwahl an den weiteren Tischen.`,
+      tableAllFull: 'Leider sind alle Plätze an den Tischen bereits reserviert. Sie können sich trotzdem gerne anmelden und kommen – Ihr Platz wird vor Ort bei der Veranstaltung zugewiesen.',
+      tableRestFree: (n) => `Für ${n} ${n === 1 ? 'Person' : 'Personen'} sind keine reservierbaren Tischplätze mehr frei – der Platz wird vor Ort bei der Veranstaltung zugewiesen.`,
       errTableChanged: 'Die Tischbelegung hat sich gerade geändert. Bitte prüfen Sie Ihre Tischwahl noch einmal.',
       childrenLabel: 'Kinder (optional, für Verpflegung und Allergien wichtig)',
       addChild: '+ Kind hinzufügen',
@@ -112,6 +114,8 @@
       memberYes: 'Yes',
       memberNo: 'No',
       memberUnknown: "I don't know",
+      memberChoose: '– Please choose Yes or No –',
+      errMember: 'Please answer the membership question with Yes or No.',
       guestsCount: 'Total number of people (including children and adults)',
       tableQuestion: 'Table for your registration',
       tableChoosePlaceholder: '– Please choose –',
@@ -121,8 +125,8 @@
       tableSeatsNeeded: (n) => `Table seats needed: ${n} (children at the kids' table are not counted)`,
       tableMoreNeeded: (n) => `Not enough seats at this table – please choose another table for the remaining ${n} ${n === 1 ? 'person' : 'people'}:`,
       tableTaken: (n) => `${n} ${n === 1 ? 'seat' : 'seats'} at this table`,
-      tableAllFull: 'Unfortunately all table seats are already reserved. You can still register – there will be free seating at the other tables.',
-      tableRestFree: (n) => `No reserved table seats are left for ${n} ${n === 1 ? 'person' : 'people'} – free seating at the other tables applies.`,
+      tableAllFull: 'Unfortunately all table seats are already reserved. You are still welcome to register and come – your seat will be assigned on site at the event.',
+      tableRestFree: (n) => `No bookable table seats are left for ${n} ${n === 1 ? 'person' : 'people'} – the seat will be assigned on site at the event.`,
       errTableChanged: 'The table occupancy has just changed. Please check your table choice again.',
       childrenLabel: 'Children (optional, important for catering and allergies)',
       addChild: '+ Add child',
@@ -176,6 +180,8 @@
       memberYes: 'Да',
       memberNo: 'Нет',
       memberUnknown: 'Не знаю',
+      memberChoose: '– Выберите «Да» или «Нет» –',
+      errMember: 'Пожалуйста, ответьте на вопрос о членстве: «Да» или «Нет».',
       guestsCount: 'Общее количество человек (включая детей и взрослых)',
       tableQuestion: 'Стол для вашей заявки',
       tableChoosePlaceholder: '– Выберите –',
@@ -185,8 +191,8 @@
       tableSeatsNeeded: (n) => `Нужно мест за столами: ${n} (дети за Kindertisch не считаются)`,
       tableMoreNeeded: (n) => `За этим столом не хватает мест – для оставшихся (${n}) выберите, пожалуйста, ещё один стол:`,
       tableTaken: (n) => `Мест за этим столом: ${n}`,
-      tableAllFull: 'К сожалению, все места за столами уже забронированы. Вы всё равно можете зарегистрироваться – будет свободная посадка за другими столами.',
-      tableRestFree: (n) => `Для ${n} чел. забронированных мест за столами больше нет – для них свободная посадка за другими столами.`,
+      tableAllFull: 'К сожалению, все места за столами уже забронированы. Вы всё равно можете зарегистрироваться и прийти – место вам определят на месте во время мероприятия.',
+      tableRestFree: (n) => `Для ${n} чел. свободных мест для бронирования больше нет – место определят на месте во время мероприятия.`,
       errTableChanged: 'Занятость столов только что изменилась. Пожалуйста, проверьте выбор стола ещё раз.',
       childrenLabel: 'Дети (необязательно, важно для питания и аллергий)',
       addChild: '+ Добавить ребёнка',
@@ -396,20 +402,13 @@
 
           <label for="member_status">${t('memberQuestion')}</label>
           <select id="member_status">
+            <option value="" selected disabled>${t('memberChoose')}</option>
             <option value="yes">${t('memberYes')}</option>
             <option value="no">${t('memberNo')}</option>
-            <option value="unknown" selected>${t('memberUnknown')}</option>
           </select>
 
           <label for="guests_count">${t('guestsCount')}</label>
           <input type="number" id="guests_count" min="1" value="1" required>
-
-          ${ev.has_seating && ev.tables && ev.tables.length ? `
-          <div id="table-block" style="margin-top:8px;">
-            <label>${t('tableQuestion')}</label>
-            <div id="table-picker"></div>
-          </div>
-          ` : ''}
 
           <label>${t('childrenLabel')}</label>
           <div id="children-list"></div>
@@ -421,6 +420,13 @@
               ${t('under6Text')}
             </label>
           </div>
+
+          ${ev.has_seating && ev.tables && ev.tables.length ? `
+          <div id="table-block" style="margin-top:16px;">
+            <label>${t('tableQuestion')}</label>
+            <div id="table-picker"></div>
+          </div>
+          ` : ''}
 
           ${ev.order_products && ev.order_products.length ? `
           <div id="order-items-block" style="margin-top:16px;">
@@ -658,6 +664,11 @@
       e.preventDefault();
       formError.style.display = 'none';
 
+      if (!memberStatusSelect.value) {
+        formError.textContent = t('errMember');
+        formError.style.display = 'block';
+        return;
+      }
       const anyUnder6 = under6Block.style.display === 'block';
       if (anyUnder6 && !under6Ack.checked) {
         formError.textContent = t('errUnder6');

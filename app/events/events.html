@@ -77,6 +77,14 @@
           <input type="checkbox" id="has-kindertisch" style="width:auto; margin-top:4px;">
           Kindertisch anbieten (Eltern können bei der Anmeldung wählen, ob ihr Kind separat am Kindertisch oder bei ihnen sitzt).
         </label>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin:8px 0 0 28px;">
+          <label style="font-weight:normal; font-size:0.9em;">Kindertisch ab Alter (leer = jedes Alter)
+            <input type="number" id="kindertisch-min-age" min="0" max="30" placeholder="z. B. 6" style="width:110px;">
+          </label>
+          <label style="font-weight:normal; font-size:0.9em;">Kindertisch bis Alter (leer = jedes Alter)
+            <input type="number" id="kindertisch-max-age" min="0" max="30" placeholder="z. B. 18" style="width:110px;">
+          </label>
+        </div>
       </div>
 
       <div style="margin-top:16px;">
@@ -326,6 +334,8 @@
   const addCustomRoomBtn = document.getElementById('add-custom-room');
   const requiresCodeInput = document.getElementById('requires-code');
   const hasKindertischInput = document.getElementById('has-kindertisch');
+  const kindertischMinAgeInput = document.getElementById('kindertisch-min-age');
+  const kindertischMaxAgeInput = document.getElementById('kindertisch-max-age');
   const hasSeatingInput = document.getElementById('has-seating');
   const tablesListContainer = document.getElementById('tables-list');
   const addTableBtn = document.getElementById('add-table');
@@ -873,6 +883,8 @@
     fillRooms(ev.rooms || []);
     requiresCodeInput.checked = !!ev.requires_code;
     hasKindertischInput.checked = !!ev.has_kindertisch;
+    kindertischMinAgeInput.value = ev.kindertisch_min_age ?? '';
+    kindertischMaxAgeInput.value = ev.kindertisch_max_age ?? '';
     hasSeatingInput.checked = !!ev.has_seating;
     fillTables(ev.tables || []);
     fillSponsorCategories(ev.sponsor_categories || []);
@@ -937,6 +949,8 @@
       rooms,
       requires_code: requiresCodeInput.checked,
       has_kindertisch: hasKindertischInput.checked,
+      kindertisch_min_age: kindertischMinAgeInput.value !== '' ? Number(kindertischMinAgeInput.value) : null,
+      kindertisch_max_age: kindertischMaxAgeInput.value !== '' ? Number(kindertischMaxAgeInput.value) : null,
       has_seating: hasSeatingInput.checked,
       tables: collectTables(),
       sponsor_categories: collectSponsorCategories(),

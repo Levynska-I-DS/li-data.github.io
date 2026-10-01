@@ -72,6 +72,8 @@
       kindertischWithParents: 'Bei den Eltern',
       kindertischAtTable: 'Am Kindertisch',
       highChairLabel: 'Kindersitz / Hochstuhl benötigt',
+      kindertischAge: (min, max) => min != null && max != null ? `${min}–${max} Jahre` : (min != null ? `ab ${min} Jahren` : `bis ${max} Jahre`),
+      kindertischNotAllowed: (range) => `Der Kindertisch ist für Kinder ${range} – dieses Kind sitzt bei den Eltern.`,
       under6Text: 'Kinder unter 6 Jahren können nur in Begleitung eines Elternteils teilnehmen. Ich bestätige das.',
       mealCount: 'Für wie viele Personen Essen bestellen?',
       orderItemsLabel: 'Zusätzliche Artikel vorbestellen (optional)',
@@ -138,6 +140,8 @@
       kindertischWithParents: 'With parents',
       kindertischAtTable: "At the kids' table",
       highChairLabel: 'High chair / booster seat needed',
+      kindertischAge: (min, max) => min != null && max != null ? `${min}–${max} years` : (min != null ? `from ${min} years` : `up to ${max} years`),
+      kindertischNotAllowed: (range) => `The kids' table is for children ${range} – this child sits with the parents.`,
       under6Text: 'Children under 6 may only attend accompanied by a parent. I confirm this.',
       mealCount: 'For how many people should food be ordered?',
       orderItemsLabel: 'Pre-order additional items (optional)',
@@ -204,6 +208,8 @@
       kindertischWithParents: 'С родителями',
       kindertischAtTable: 'За детским столом (Kindertisch)',
       highChairLabel: 'Нужен детский стульчик',
+      kindertischAge: (min, max) => min != null && max != null ? `${min}–${max} лет` : (min != null ? `от ${min} лет` : `до ${max} лет`),
+      kindertischNotAllowed: (range) => `Детский стол – для детей ${range}, этот ребёнок сидит с родителями.`,
       under6Text: 'Дети младше 6 лет могут участвовать только в сопровождении родителя. Я это подтверждаю.',
       mealCount: 'На сколько человек заказать питание?',
       orderItemsLabel: 'Предзаказ дополнительных товаров (необязательно)',
@@ -275,7 +281,7 @@
 
     const { data: ev, error } = await supabase
       .from('events')
-      .select('id, slug, title, starts_at, location, meal_type, non_member_fee, fee_mode, fee_amount_child, requires_code, order_products, registration_deadline, status, has_kindertisch, has_seating, tables, ends_at, security_email, accent_theme')
+      .select('id, slug, title, starts_at, location, meal_type, non_member_fee, fee_mode, fee_amount_child, requires_code, order_products, registration_deadline, status, has_kindertisch, kindertisch_min_age, kindertisch_max_age, has_seating, tables, ends_at, security_email, accent_theme')
       .eq('slug', slug)
       .single();
 
@@ -339,7 +345,7 @@
     });
   }
 
-  function childRowHtml(idx, showKindertisch) {
+  function childRowHtml(idx, showKindertisch, ageRange) {
     return `
       <div class="child-row" data-idx="${idx}" style="border:1px solid #ddd; border-radius:6px; padding:8px; margin-top:8px;">
         <div style="display:flex; gap:8px; align-items:flex-end;">
@@ -355,11 +361,12 @@
         ${showKindertisch ? `
         <div style="margin-top:8px; font-size:0.9em;">
           <span style="color:#555;">${t('kindertischQuestion')}:</span>
-          <label style="font-weight:normal; margin-left:8px;"><input type="radio" name="kindertisch-${idx}" class="child-kindertisch" value="parents" checked style="width:auto;"> ${t('kindertischWithParents')}</label>
-          <label style="font-weight:normal; margin-left:8px;"><input type="radio" name="kindertisch-${idx}" class="child-kindertisch" value="table" style="width:auto;"> ${t('kindertischAtTable')}</label>
+          <label style="font-weight:normal; margin-left:8px;"><input type="radio" name="kindertisch-${idx}" class="child-kindertisch" value="table" checked style="width:auto;"> ${t('kindertischAtTable')}${ageRange ? ` (${ageRange})` : ''}</label>
+          <label style="font-weight:normal; margin-left:8px;"><input type="radio" name="kindertisch-${idx}" class="child-kindertisch" value="parents" style="width:auto;"> ${t('kindertischWithParents')}</label>
+          <div class="child-kindertisch-note" style="display:none; color:#a0522d; margin-top:4px;"></div>
         </div>
         ` : ''}
-        <label style="display:flex; align-items:center; gap:6px; font-weight:normal; font-size:0.9em; margin-top:6px;">
+        <label class="child-high-chair-wrap" style="display:${showKindertisch ? 'none' : 'flex'}; align-items:center; gap:6px; font-weight:normal; font-size:0.9em; margin-top:6px;">
           <input type="checkbox" class="child-high-chair" style="width:auto;"> ${t('highChairLabel')}
         </label>
       </div>
@@ -637,10 +644,40 @@
       if (!anyUnder6) under6Ack.checked = false;
     }
 
+    // Optional age limits for the Kindertisch, set per event in the admin
+    // (events.kindertisch_min_age / kindertisch_max_age; empty = any age).
+    const ktMin = ev.kindertisch_min_age != null ? Number(ev.kindertisch_min_age) : null;
+    const ktMax = ev.kindertisch_max_age != null ? Number(ev.kindertisch_max_age) : null;
+    const kindertischRange = (ktMin != null || ktMax != null) ? t('kindertischAge', ktMin, ktMax) : '';
+
+    // "Am Kindertisch" is the default; a child outside the age limits is moved
+    // to "Bei den Eltern". The Kindersitz checkbox only shows "Bei den Eltern".
+    function applyKindertischRules(row) {
+      const tableRadio = row.querySelector('.child-kindertisch[value="table"]');
+      const parentsRadio = row.querySelector('.child-kindertisch[value="parents"]');
+      const chairWrap = row.querySelector('.child-high-chair-wrap');
+      if (!tableRadio) return;
+      const note = row.querySelector('.child-kindertisch-note');
+      const age = ageFromBirthDate(row.querySelector('.child-birth-date').value, ev.starts_at);
+      const outside = age !== null && ((ktMin != null && age < ktMin) || (ktMax != null && age > ktMax));
+      tableRadio.disabled = outside;
+      if (outside) {
+        parentsRadio.checked = true;
+        note.textContent = t('kindertischNotAllowed', kindertischRange);
+        note.style.display = 'block';
+      } else {
+        note.style.display = 'none';
+      }
+      const withParents = parentsRadio.checked;
+      chairWrap.style.display = withParents ? 'flex' : 'none';
+      if (!withParents) row.querySelector('.child-high-chair').checked = false;
+    }
+
     function addChildRow() {
       childIdx += 1;
-      childrenList.insertAdjacentHTML('beforeend', childRowHtml(childIdx, ev.has_kindertisch));
+      childrenList.insertAdjacentHTML('beforeend', childRowHtml(childIdx, ev.has_kindertisch, kindertischRange));
       const row = childrenList.lastElementChild;
+      row.querySelector('.child-birth-date').addEventListener('change', () => { applyKindertischRules(row); renderTableOptions(); });
       row.querySelector('.remove-child').addEventListener('click', () => {
         row.remove();
         updateUnder6Visibility();
@@ -648,7 +685,8 @@
         renderTableOptions();
       });
       row.querySelector('.child-birth-date').addEventListener('change', updateUnder6Visibility);
-      row.querySelectorAll('.child-kindertisch').forEach(r => r.addEventListener('change', renderTableOptions));
+      row.querySelectorAll('.child-kindertisch').forEach(r => r.addEventListener('change', () => { applyKindertischRules(row); renderTableOptions(); }));
+      applyKindertischRules(row);
       updateFeeAmount();
     }
 
